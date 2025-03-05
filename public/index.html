@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYNJ ShanSong - Instant Delivery</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiZ4kg052Mq1y2YMs3qQF_EYhPigeG4XQ&libraries=places&callback=initMap" defer></script>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div class="logo">
+                <img src="https://via.placeholder.com/50x50" alt="ShanSong Logo">
+                <h1>NYNJ ShanSong</h1>
+            </div>
+            <p class="tagline">Fast, Reliable Delivery Service</p>
+        </header>
+        
+        <main>
+            <div id="order-form-container">
+                <h2>Place Your Order</h2>
+                <form id="quick-order-form">
+                    <!-- Sender and Receiver Information (Two Columns) -->
+                    <div class="form-row">
+                        <div class="form-column">
+                            <div class="form-section">
+                                <h3>Sender Information</h3>
+                                <div class="form-group">
+                                    <label for="sender-name">Name</label>
+                                    <input type="text" id="sender-name" placeholder="Enter sender's name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sender-phone">Phone Number</label>
+                                    <input type="tel" id="sender-phone" placeholder="Enter sender's phone" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-column">
+                            <div class="form-section">
+                                <h3>Receiver Information</h3>
+                                <div class="form-group">
+                                    <label for="receiver-name">Name</label>
+                                    <input type="text" id="receiver-name" placeholder="Enter receiver's name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="receiver-phone">Phone Number</label>
+                                    <input type="tel" id="receiver-phone" placeholder="Enter receiver's phone" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Item Information -->
+                    <div class="form-section">
+                        <h3>Item Details</h3>
+                        <div class="form-group">
+                            <label for="item-type">Item Type</label>
+                            <select id="item-type" required>
+                                <option value="">Select Item Type</option>
+                                <option value="documents">Documents</option>
+                                <option value="keys">Keys</option>
+                                <option value="gifts">Gifts</option>
+                                <option value="medicines">Medicines</option>
+                                <option value="food">Food</option>
+                                <option value="electronics">Electronics</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-column">
+                                <div class="form-group">
+                                    <label for="item-size">Approximate Size</label>
+                                    <select id="item-size" required>
+                                        <option value="small">Small (fits in envelope)</option>
+                                        <option value="medium">Medium (shoebox size)</option>
+                                        <option value="large">Large (backpack size)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-column">
+                                <div class="form-group">
+                                    <label for="item-weight">Approximate Weight</label>
+                                    <select id="item-weight">
+                                        <option value="light">Light (< 1 lb)</option>
+                                        <option value="medium">Medium (1-5 lbs)</option>
+                                        <option value="heavy">Heavy (> 5 lbs)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="special-requirements">Special Requirements</label>
+                            <textarea id="special-requirements" placeholder="Fragile items, urgent delivery, etc."></textarea>
+                        </div>
+                        
+                        <div class="form-group file-upload">
+                            <label for="item-image">Upload Image (Optional)</label>
+                            <div class="upload-container">
+                                <input type="file" id="item-image" accept="image/*">
+                                <button type="button" id="upload-btn" class="secondary-btn">
+                                    <span class="upload-icon">📷</span> Upload Image or Bill
+                                </button>
+                                <div id="image-preview"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Location Selection with Google Maps -->
+                    <div class="form-section location-section">
+                        <h3>Pickup & Delivery Locations</h3>
+                        
+                        <div id="map-container">
+                            <div id="map" class="google-map"></div>
+                            
+                            <div class="location-inputs">
+                                <div class="location-input-group">
+                                    <div class="location-icon pickup-icon">A</div>
+                                    <input type="text" id="pickup-address" placeholder="Enter pickup address" required>
+                                    <button type="button" id="use-current-location" class="icon-btn">
+                                        <span class="location-dot-icon">📍</span>
+                                    </button>
+                                </div>
+                                
+                                <div class="location-connector"></div>
+                                
+                                <div class="location-input-group">
+                                    <div class="location-icon delivery-icon">B</div>
+                                    <input type="text" id="delivery-address" placeholder="Enter delivery address" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="route-info">
+                            <div class="distance-info">
+                                <span class="info-label">Estimated Distance:</span>
+                                <span id="distance-value">--</span>
+                            </div>
+                            <div class="time-info">
+                                <span class="info-label">Estimated Time:</span>
+                                <span id="time-value">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" id="preview-order" class="secondary-btn">Preview Order</button>
+                        <button type="submit" id="submit-order" class="primary-btn">Place Order</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Order Preview Modal -->
+            <div id="order-preview-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h2>Order Preview</h2>
+                    <div id="preview-content"></div>
+                    <button id="confirm-order" class="primary-btn">Confirm Order</button>
+                </div>
+            </div>
+            
+            <!-- Order Tracking Section (initially hidden) -->
+            <div id="order-tracking-container" style="display: none;">
+                <div class="tracking-header">
+                    <h2>Track Your Order</h2>
+                    <div class="order-id">Order #<span id="tracking-order-id">123456</span></div>
+                </div>
+                
+                <div class="tracking-status-container">
+                    <div id="order-status">
+                        <div class="status-item active" id="status-placed">
+                            <div class="status-icon">1</div>
+                            <div class="status-text">Order Placed</div>
+                        </div>
+                        <div class="status-item" id="status-rider-assigned">
+                            <div class="status-icon">2</div>
+                            <div class="status-text">Rider Assigned</div>
+                        </div>
+                        <div class="status-item" id="status-pickup">
+                            <div class="status-icon">3</div>
+                            <div class="status-text">Pickup</div>
+                        </div>
+                        <div class="status-item" id="status-delivery">
+                            <div class="status-icon">4</div>
+                            <div class="status-text">Delivery</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tracking-content">
+                    <div id="tracking-map-container">
+                        <div id="tracking-map" class="google-map"></div>
+                        
+                        <div class="location-summary">
+                            <div class="location-summary-item">
+                                <div class="location-icon pickup-icon">A</div>
+                                <div class="location-details">
+                                    <div class="location-label">Pickup</div>
+                                    <div id="tracking-pickup-address" class="location-address">123 Main St, New York, NY</div>
+                                </div>
+                            </div>
+                            
+                            <div class="location-connector"></div>
+                            
+                            <div class="location-summary-item">
+                                <div class="location-icon delivery-icon">B</div>
+                                <div class="location-details">
+                                    <div class="location-label">Delivery</div>
+                                    <div id="tracking-delivery-address" class="location-address">456 Park Ave, New York, NY</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="rider-info">
+                        <h3>Rider Information</h3>
+                        <div class="rider-profile">
+                            <div class="rider-avatar">
+                                <img src="https://via.placeholder.com/60x60" alt="Rider">
+                            </div>
+                            <div id="rider-details">
+                                <div class="rider-name" id="rider-name">--</div>
+                                <div class="rider-rating" id="rider-rating">--</div>
+                                <div class="rider-phone" id="rider-phone">--</div>
+                            </div>
+                            <button id="contact-rider" class="secondary-btn">Contact Rider</button>
+                        </div>
+                        
+                        <div id="eta" class="eta-container">
+                            <div class="eta-icon">🕒</div>
+                            <div class="eta-details">
+                                <div class="eta-label">Estimated arrival</div>
+                                <div id="eta-value" class="eta-time">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <img src="https://via.placeholder.com/40x40" alt="ShanSong Logo">
+                    <span>NYNJ ShanSong</span>
+                </div>
+                <div class="footer-links">
+                    <a href="#privacy">Privacy Policy</a>
+                    <a href="#terms">Terms of Service</a>
+                    <a href="#about">About Us</a>
+                    <a href="#contact">Contact</a>
+                </div>
+                <div class="footer-copyright">
+                    &copy; 2023 NYNJ ShanSong. All rights reserved.
+                </div>
+            </div>
+        </footer>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html> 
