@@ -19,5 +19,9 @@
       "src": "/(.*)",
       "dest": "/public/$1"
     }
-  ]
+  ],
+  "env": {
+    "AIRTABLE_API_KEY": "pat0k8XuZRzbgfr5D.7d8f31068a137e8070a5ccdcce9c180b291314118b01a250889e362dc441d957",
+    "AIRTABLE_BASE_ID": "appFDJeAd9Hy9vIzc"
+  }
 } 

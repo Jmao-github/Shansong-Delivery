@@ -10,7 +10,7 @@ const Airtable = require('airtable');
 // Initialize Airtable
 // In production, use environment variables for these values
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || 'pat0k8XuZRzbgfr5D.7d8f31068a137e8070a5ccdcce9c180b291314118b01a250889e362dc441d957';
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'YOUR_BASE_ID'; // Replace with your actual Base ID
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'appFDJeAd9Hy9vIzc'; // Replace with your actual Base ID
 
 const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
 
@@ -89,36 +89,52 @@ app.post('/api/orders', async (req, res) => {
         // Save to in-memory storage
         orders.push(order);
         
-        // Save to Airtable
+        // Save to Airtable with detailed logging
         try {
-            const airtableRecord = await base('Orders').create([
-                {
-                    fields: {
-                        'Status': 'Placed',
-                        'Created At': order.createdAt,
-                        'Sender Name': order.senderName,
-                        'Sender Phone': order.senderPhone,
-                        'Receiver Name': order.receiverName,
-                        'Receiver Phone': order.receiverPhone,
-                        'Pickup Address': order.pickupAddress,
-                        'Delivery Address': order.deliveryAddress,
-                        'Item Type': order.itemType,
-                        'Item Size': order.itemSize,
-                        'Item Weight': order.itemWeight || 'Light',
-                        'Special Requirements': order.specialRequirements || '',
-                        'Distance': parseFloat(order.distance) || 0,
-                        'Estimated Time': parseInt(order.estimatedTime) || 0,
-                        'Price': parseFloat(order.price) || 0,
-                        'Payment Status': 'Unpaid'
-                    }
-                }
-            ]);
+            console.log('Attempting to save order to Airtable with data:', JSON.stringify(orderData));
+            console.log('Using Airtable base ID:', AIRTABLE_BASE_ID);
+            console.log('Using Airtable API key (first 5 chars):', AIRTABLE_API_KEY.substring(0, 5) + '...');
             
+            // Simplify the fields object to reduce potential errors
+            const fields = {
+                'Status': 'Placed',
+                'Created At': order.createdAt,
+                'Sender Name': order.senderName || '',
+                'Sender Phone': order.senderPhone || '',
+                'Receiver Name': order.receiverName || '',
+                'Receiver Phone': order.receiverPhone || '',
+                'Pickup Address': order.pickupAddress || '',
+                'Delivery Address': order.deliveryAddress || '',
+                'Item Type': order.itemType || '',
+                'Item Size': order.itemSize || '',
+                'Item Weight': order.itemWeight || 'Light',
+                'Special Requirements': order.specialRequirements || '',
+                'Distance': 0, // Set default values for numeric fields
+                'Estimated Time': 0,
+                'Price': 0,
+                'Payment Status': 'Unpaid'
+            };
+            
+            // Try to parse numeric values, but use defaults if they fail
+            try {
+                if (order.distance) fields['Distance'] = parseFloat(order.distance) || 0;
+                if (order.estimatedTime) fields['Estimated Time'] = parseInt(order.estimatedTime) || 0;
+                if (order.price) fields['Price'] = parseFloat(order.price) || 0;
+            } catch (parseError) {
+                console.error('Error parsing numeric values:', parseError);
+            }
+            
+            console.log('Prepared fields for Airtable:', fields);
+            
+            const airtableRecord = await base('Orders').create([{ fields }]);
+            
+            console.log('Order successfully saved to Airtable:', airtableRecord);
             // Update order with Airtable ID
             order.airtableId = airtableRecord[0].getId();
-            console.log('Order saved to Airtable:', order.airtableId);
         } catch (airtableError) {
             console.error('Error saving to Airtable:', airtableError);
+            console.error('Error details:', airtableError.message);
+            console.error('Error stack:', airtableError.stack);
             // Continue even if Airtable save fails
         }
         
@@ -247,8 +263,17 @@ function broadcastOrderUpdate(order) {
     });
 }
 
-// Start server
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-}); 
+// Check if running in Vercel serverless environment
+const isVercel = process.env.VERCEL === '1';
+
+// If running in Vercel, export the API routes as serverless functions
+if (isVercel) {
+    // Export the API handler for Vercel serverless functions
+    module.exports = app;
+} else {
+    // Start server normally for local development
+    const PORT = process.env.PORT || 3001;
+    server.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+} 

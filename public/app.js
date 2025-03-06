@@ -296,8 +296,11 @@ document.addEventListener('DOMContentLoaded', function() {
         loadingIndicator.textContent = 'Processing your order...';
         document.body.appendChild(loadingIndicator);
         
+        // Get the base URL with the correct protocol
+        const baseUrl = window.location.origin;
+        
         // Submit order to API
-        fetch('/api/orders', {
+        fetch(`${baseUrl}/api/orders`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -325,6 +328,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('tracking-pickup-address').textContent = pickupAddress;
                 document.getElementById('tracking-delivery-address').textContent = deliveryAddress;
                 
+                // Initialize the tracking map with the addresses
+                initTrackingMap(pickupAddress, deliveryAddress);
+                
                 // Connect to WebSocket for real-time updates
                 connectToWebSocket(orderId);
                 
@@ -343,7 +349,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function connectToWebSocket(orderId) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}`;
+        const host = window.location.host;
+        const wsUrl = `${protocol}//${host}`;
+        
+        console.log(`Connecting to WebSocket at ${wsUrl}`);
         
         const socket = new WebSocket(wsUrl);
         
@@ -816,4 +825,98 @@ function getCurrentLocation() {
         },
         { enableHighAccuracy: true }
     );
+}
+
+// Add this function to properly initialize the tracking map
+function initTrackingMap(pickupAddress, deliveryAddress) {
+    console.log("Initializing tracking map");
+    
+    const trackingMapElement = document.getElementById('tracking-map');
+    if (!trackingMapElement) {
+        console.error("Tracking map element not found");
+        return;
+    }
+    
+    // Clear any placeholder text
+    trackingMapElement.textContent = '';
+    
+    // Default to New York if no coordinates
+    const defaultLocation = { lat: 40.7128, lng: -74.0060 };
+    
+    // Initialize the map
+    const map = new google.maps.Map(trackingMapElement, {
+        center: defaultLocation,
+        zoom: 12,
+        disableDefaultUI: true,
+        zoomControl: true
+    });
+    
+    // Create markers for pickup and delivery
+    const pickupMarker = new google.maps.Marker({
+        map: map,
+        icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: '#276EF1',
+            fillOpacity: 1,
+            strokeWeight: 0,
+            scale: 10
+        }
+    });
+    
+    const deliveryMarker = new google.maps.Marker({
+        map: map,
+        icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: '#05944F',
+            fillOpacity: 1,
+            strokeWeight: 0,
+            scale: 10
+        }
+    });
+    
+    // Geocode the addresses to get coordinates
+    const geocoder = new google.maps.Geocoder();
+    
+    // Geocode pickup address
+    geocoder.geocode({ address: pickupAddress }, function(results, status) {
+        if (status === 'OK' && results[0]) {
+            pickupMarker.setPosition(results[0].geometry.location);
+            
+            // Geocode delivery address
+            geocoder.geocode({ address: deliveryAddress }, function(results, status) {
+                if (status === 'OK' && results[0]) {
+                    deliveryMarker.setPosition(results[0].geometry.location);
+                    
+                    // Create a bounds object
+                    const bounds = new google.maps.LatLngBounds();
+                    bounds.extend(pickupMarker.getPosition());
+                    bounds.extend(deliveryMarker.getPosition());
+                    
+                    // Fit the map to show both markers
+                    map.fitBounds(bounds);
+                    
+                    // Draw a route between the markers
+                    const directionsService = new google.maps.DirectionsService();
+                    const directionsRenderer = new google.maps.DirectionsRenderer({
+                        map: map,
+                        suppressMarkers: true,
+                        polylineOptions: {
+                            strokeColor: '#276EF1',
+                            strokeWeight: 5
+                        }
+                    });
+                    
+                    directionsService.route({
+                        origin: pickupMarker.getPosition(),
+                        destination: deliveryMarker.getPosition(),
+                        travelMode: google.maps.TravelMode.DRIVING
+                    }, function(response, status) {
+                        if (status === 'OK') {
+                            directionsRenderer.setDirections(response);
+                        }
+                    });
+                }
+            });
+        }
+    });
 } 
