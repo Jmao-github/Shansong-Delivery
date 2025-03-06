@@ -9,7 +9,7 @@ const Airtable = require('airtable');
 
 // Initialize Airtable
 // In production, use environment variables for these values
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || 'pat0k8XuZRzbgfr5D.7d8f31068a137e8070a5ccdcce9c180b291314118b01a250889e362dc441d957';
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || 'pat0k8XuZRzbgfr5D.ff14421558961d2f39b20ec5b91a968fafd8eed7594e9f62bd61179bce21822a';
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'appFDJeAd9Hy9vIzc'; // Replace with your actual Base ID
 
 const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
@@ -78,83 +78,86 @@ app.post('/api/orders', async (req, res) => {
     try {
         const orderData = req.body;
         
-        // Create a new order
+        // Validate required fields using camelCase (matching the input)
+        const requiredFields = [
+            'senderName', 
+            'senderPhone', 
+            'receiverName', 
+            'receiverPhone', 
+            'pickupAddress', 
+            'deliveryAddress'
+        ];
+
+        const missingFields = requiredFields.filter(field => !orderData[field]);
+
+        if (missingFields.length > 0) {
+            return res.status(400).json({
+                success: false,
+                error: `Missing required fields: ${missingFields.join(', ')}`
+            });
+        }
+
+        // Transform the data to match Airtable field names
+        const airtableFields = {
+            ' Order ID ': Date.now().toString(),
+            ' Status ': 'Placed',
+            ' Created At ': new Date().toISOString(),
+            ' Sender Name ': orderData.senderName,
+            ' Sender Phone ': orderData.senderPhone,
+            ' Receiver Name ': orderData.receiverName,
+            ' Receiver Phone ': orderData.receiverPhone,
+            ' Pickup Address ': orderData.pickupAddress,
+            ' Delivery Address ': orderData.deliveryAddress,
+            ' Item Type ': orderData.itemType || '',
+            ' Item Size ': orderData.itemSize || '',
+            ' Item Weight ': orderData.itemWeight || '',
+            ' Special Requirements ': orderData.specialRequirements || '',
+            ' Distance ': orderData.distance || '',
+            ' Estimated Time ': orderData.estimatedTime || '',
+            ' Price ': orderData.price || '',
+            ' Payment Status ': orderData.paymentStatus || 'Unpaid',
+            ' Payment Method ': orderData.paymentMethod || ''
+        };
+
+        // Create order internally
         const order = {
-            id: Date.now().toString(),
-            status: 'placed',
-            createdAt: new Date().toISOString(),
+            id: airtableFields[' Order ID '],
+            status: airtableFields[' Status '],
+            createdAt: airtableFields[' Created At '],
             ...orderData
         };
-        
+
         // Save to in-memory storage
         orders.push(order);
-        
-        // Save to Airtable with detailed logging
+
+        // Save to Airtable
         try {
-            console.log('Attempting to save order to Airtable with data:', JSON.stringify(orderData));
-            console.log('Using Airtable base ID:', AIRTABLE_BASE_ID);
-            console.log('Using Airtable API key (first 5 chars):', AIRTABLE_API_KEY.substring(0, 5) + '...');
-            
-            // Simplify the fields object to reduce potential errors
-            const fields = {
-                'Status': 'Placed',
-                'Created At': order.createdAt,
-                'Sender Name': order.senderName || '',
-                'Sender Phone': order.senderPhone || '',
-                'Receiver Name': order.receiverName || '',
-                'Receiver Phone': order.receiverPhone || '',
-                'Pickup Address': order.pickupAddress || '',
-                'Delivery Address': order.deliveryAddress || '',
-                'Item Type': order.itemType || '',
-                'Item Size': order.itemSize || '',
-                'Item Weight': order.itemWeight || 'Light',
-                'Special Requirements': order.specialRequirements || '',
-                'Distance': 0, // Set default values for numeric fields
-                'Estimated Time': 0,
-                'Price': 0,
-                'Payment Status': 'Unpaid'
-            };
-            
-            // Try to parse numeric values, but use defaults if they fail
-            try {
-                if (order.distance) fields['Distance'] = parseFloat(order.distance) || 0;
-                if (order.estimatedTime) fields['Estimated Time'] = parseInt(order.estimatedTime) || 0;
-                if (order.price) fields['Price'] = parseFloat(order.price) || 0;
-            } catch (parseError) {
-                console.error('Error parsing numeric values:', parseError);
-            }
-            
-            console.log('Prepared fields for Airtable:', fields);
-            
-            const airtableRecord = await base('Orders').create([{ fields }]);
-            
-            console.log('Order successfully saved to Airtable:', airtableRecord);
-            // Update order with Airtable ID
+            const airtableRecord = await base('Orders').create([{ fields: airtableFields }]);
             order.airtableId = airtableRecord[0].getId();
+
+            res.status(201).json({
+                success: true,
+                order: {
+                    id: order.id,
+                    airtableId: order.airtableId,
+                    status: order.status
+                }
+            });
+
         } catch (airtableError) {
             console.error('Error saving to Airtable:', airtableError);
-            console.error('Error details:', airtableError.message);
-            console.error('Error stack:', airtableError.stack);
-            // Continue even if Airtable save fails
+            res.status(500).json({
+                success: false,
+                error: 'Failed to save to Airtable',
+                details: airtableError.message
+            });
         }
-        
-        // Simulate order processing
-        setTimeout(() => {
-            processOrder(order);
-        }, 5000);
-        
-        res.status(201).json({
-            success: true,
-            order: {
-                id: order.id,
-                status: order.status
-            }
-        });
     } catch (error) {
         console.error('Error creating order:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to create order'
+            error: 'Failed to create order',
+            details: error.message
         });
     }
 });

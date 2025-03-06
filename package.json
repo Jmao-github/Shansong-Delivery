@@ -11,6 +11,7 @@
     "airtable": "^0.12.2",
     "body-parser": "^1.20.3",
     "express": "^4.21.2",
+    "node-fetch": "^2.7.0",
     "nodemon": "^2.0.14",
     "ws": "^8.18.1"
   }
