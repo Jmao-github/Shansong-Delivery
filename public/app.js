@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!files.length) return;
         
         // Get existing files count
-        const existingFiles = imagePreview.querySelectorAll('img, .file-icon').length;
+        const existingFiles = imagePreview.querySelectorAll('.file-container').length;
         const totalFiles = existingFiles + files.length;
         
         // Check if exceeding max files (5)
@@ -79,6 +79,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const successMessage = document.createElement('div');
         successMessage.className = 'upload-success';
         successMessage.innerHTML = '✅ File uploaded successfully';
+        
+        // Track loaded images to update count only when all files are processed
+        let loadedImages = 0;
         
         // Create image preview
         for (let i = 0; i < files.length; i++) {
@@ -107,6 +110,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 fileContainer.appendChild(fileIcon);
                 fileContainer.appendChild(removeBtn);
                 imagePreview.appendChild(fileContainer);
+                
+                // Increment loaded images count
+                loadedImages++;
+                if (loadedImages === files.length) {
+                    updateUploadButtonState();
+                }
                 continue;
             }
             
@@ -121,6 +130,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 fileContainer.appendChild(img);
                 fileContainer.appendChild(removeBtn);
                 imagePreview.appendChild(fileContainer);
+                
+                // Increment loaded images count and update button state when all are loaded
+                loadedImages++;
+                if (loadedImages === files.length) {
+                    updateUploadButtonState();
+                }
             };
             
             reader.readAsDataURL(file);
@@ -128,9 +143,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add success message
         imagePreview.appendChild(successMessage);
-        
-        // Update upload button state
-        updateUploadButtonState();
         
         // Remove success message after 3 seconds
         setTimeout(() => {
@@ -141,7 +153,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update upload button state based on file count
     function updateUploadButtonState() {
-        const fileCount = imagePreview.querySelectorAll('.file-container').length;
+        const fileContainers = imagePreview.querySelectorAll('.file-container');
+        const fileCount = fileContainers.length;
         
         if (fileCount >= 5) {
             uploadBtn.disabled = true;
@@ -153,16 +166,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Show file count if any files are uploaded
         if (fileCount > 0) {
-            const countLabel = document.createElement('div');
-            countLabel.className = 'file-count';
-            countLabel.textContent = `${fileCount}/5 files uploaded`;
-            
             // Remove existing count label if any
             const existingLabel = imagePreview.querySelector('.file-count');
             if (existingLabel) {
                 existingLabel.remove();
             }
             
+            const countLabel = document.createElement('div');
+            countLabel.className = 'file-count';
+            countLabel.textContent = `${fileCount}/5 files uploaded`;
             imagePreview.appendChild(countLabel);
         } else {
             // Remove count label if no files
@@ -230,11 +242,53 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p><strong>Distance Fee:</strong> <span id="distance-fee">Calculating...</span></p>
                 <p><strong>Total:</strong> <span id="total-price">Calculating...</span></p>
             </div>
+            
+            <div class="preview-section payment-section">
+                <h3>Select Payment Method</h3>
+                <div class="payment-options">
+                    <div class="payment-option">
+                        <input type="radio" id="payment-paypal" name="payment-method" value="PayPal" checked>
+                        <label for="payment-paypal">
+                            <img src="https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg" alt="PayPal">
+                            PayPal
+                        </label>
+                    </div>
+                    <div class="payment-option">
+                        <input type="radio" id="payment-wechat" name="payment-method" value="WeChat">
+                        <label for="payment-wechat">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/WeChat.svg/120px-WeChat.svg.png" alt="WeChat Pay" style="height: 23px;">
+                            WeChat Pay
+                        </label>
+                    </div>
+                </div>
+                <div id="payment-qr-container" class="payment-qr-container">
+                    <div id="paypal-qr" class="payment-qr active">
+                        <img src="https://via.placeholder.com/200x200?text=PayPal+QR+Code" alt="PayPal QR Code">
+                        <p>Scan with PayPal app to pay</p>
+                    </div>
+                    <div id="wechat-qr" class="payment-qr">
+                        <img src="https://via.placeholder.com/200x200?text=WeChat+Pay+QR+Code" alt="WeChat Pay QR Code">
+                        <p>Scan with WeChat to pay</p>
+                    </div>
+                </div>
+            </div>
         `;
         
         // Update modal content and show it
         previewContent.innerHTML = previewHTML;
         orderPreviewModal.style.display = 'block';
+        
+        // Add payment method change event
+        document.querySelectorAll('input[name="payment-method"]').forEach(input => {
+            input.addEventListener('change', function() {
+                document.querySelectorAll('.payment-qr').forEach(qr => qr.classList.remove('active'));
+                if (this.value === 'PayPal') {
+                    document.getElementById('paypal-qr').classList.add('active');
+                } else if (this.value === 'WeChat') {
+                    document.getElementById('wechat-qr').classList.add('active');
+                }
+            });
+        });
         
         // Simulate distance calculation
         setTimeout(() => {
@@ -275,19 +329,23 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Create order object
         const orderData = {
-            senderName,
-            senderPhone,
-            receiverName,
-            receiverPhone,
-            itemType,
-            itemSize,
-            itemWeight,
-            specialRequirements,
-            pickupAddress,
-            deliveryAddress,
-            distance: distanceValue,
-            estimatedTime: estimatedTime.replace(/[^0-9]/g, ''),
-            price
+            ' Sender Name ': senderName,
+            ' Sender Phone ': senderPhone,
+            ' Receiver Name ': receiverName,
+            ' Receiver Phone ': receiverPhone,
+            ' Pickup Address ': pickupAddress,
+            ' Delivery Address ': deliveryAddress,
+            ' Item Type ': itemType,
+            ' Item Size ': itemSize,
+            ' Item Weight ': itemWeight || '',
+            ' Special Requirements ': specialRequirements || '',
+            ' Distance ': distanceValue.toString(),
+            ' Estimated Time ': estimatedTime.replace(/[^0-9]/g, ''),
+            ' Price ': '$' + price,
+            ' Status ': 'Placed',
+            ' Created At ': new Date().toISOString(),
+            ' Payment Status ': 'Unpaid',
+            ' Payment Method ': ''
         };
         
         // Show loading indicator
@@ -541,6 +599,40 @@ document.addEventListener('DOMContentLoaded', function() {
             initMap();
         }
     }, 1000); // Give the callback a second to work first
+
+    // Add this after your DOM ready event
+    document.getElementById('item-size').addEventListener('change', function() {
+        const sizeSelect = this;
+        const weightSelect = document.getElementById('item-weight');
+        
+        if (weightSelect) {
+            // Auto-select weight based on size
+            switch(sizeSelect.value) {
+                case 'small':
+                    weightSelect.value = 'light';
+                    break;
+                case 'medium':
+                    weightSelect.value = 'medium';
+                    break;
+                case 'large':
+                    weightSelect.value = 'heavy';
+                    break;
+            }
+        }
+    });
+
+    // Add a note about size limitations
+    const sizeSelect = document.getElementById('item-size');
+    if (sizeSelect) {
+        const noteElement = document.createElement('div');
+        noteElement.className = 'form-note';
+        noteElement.textContent = 'Note: We only accept items that can be carried in a backpack or small shopping cart.';
+        noteElement.style.color = '#717171';
+        noteElement.style.fontSize = '14px';
+        noteElement.style.marginTop = '5px';
+        
+        sizeSelect.parentNode.appendChild(noteElement);
+    }
 });
 
 // Google Maps integration code to add to app.js

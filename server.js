@@ -77,63 +77,65 @@ wss.on('connection', (ws) => {
 app.post('/api/orders', async (req, res) => {
     try {
         const orderData = req.body;
-        
-        // Validate required fields using camelCase (matching the input)
+        console.log('Received order data:', JSON.stringify(orderData, null, 2));
+
+        // Update validation to match Airtable field names exactly
         const requiredFields = [
-            'senderName', 
-            'senderPhone', 
-            'receiverName', 
-            'receiverPhone', 
-            'pickupAddress', 
-            'deliveryAddress'
+            ' Sender Name ', 
+            ' Sender Phone ', 
+            ' Receiver Name ', 
+            ' Receiver Phone ', 
+            ' Pickup Address ', 
+            ' Delivery Address '
         ];
+
+        // Check if the field names in the request match what we expect
+        console.log('Available fields in request:', Object.keys(orderData));
 
         const missingFields = requiredFields.filter(field => !orderData[field]);
 
         if (missingFields.length > 0) {
+            console.log('Missing fields:', missingFields);
             return res.status(400).json({
                 success: false,
                 error: `Missing required fields: ${missingFields.join(', ')}`
             });
         }
 
-        // Transform the data to match Airtable field names
-        const airtableFields = {
-            ' Order ID ': Date.now().toString(),
-            ' Status ': 'Placed',
-            ' Created At ': new Date().toISOString(),
-            ' Sender Name ': orderData.senderName,
-            ' Sender Phone ': orderData.senderPhone,
-            ' Receiver Name ': orderData.receiverName,
-            ' Receiver Phone ': orderData.receiverPhone,
-            ' Pickup Address ': orderData.pickupAddress,
-            ' Delivery Address ': orderData.deliveryAddress,
-            ' Item Type ': orderData.itemType || '',
-            ' Item Size ': orderData.itemSize || '',
-            ' Item Weight ': orderData.itemWeight || '',
-            ' Special Requirements ': orderData.specialRequirements || '',
-            ' Distance ': orderData.distance || '',
-            ' Estimated Time ': orderData.estimatedTime || '',
-            ' Price ': orderData.price || '',
-            ' Payment Status ': orderData.paymentStatus || 'Unpaid',
-            ' Payment Method ': orderData.paymentMethod || ''
-        };
-
         // Create order internally
         const order = {
-            id: airtableFields[' Order ID '],
-            status: airtableFields[' Status '],
-            createdAt: airtableFields[' Created At '],
-            ...orderData
+            id: generateOrderId(orderData),
+            status: orderData[' Status '] || 'Placed',
+            createdAt: orderData[' Created At '] || new Date().toISOString(),
+            airtableFields: orderData
         };
 
         // Save to in-memory storage
         orders.push(order);
 
-        // Save to Airtable
+        // Add this function to generate a meaningful Order ID
+        function generateOrderId(orderData) {
+            const timestamp = new Date().getTime();
+            const senderInitials = orderData[' Sender Name ']
+                .split(' ')
+                .map(name => name[0])
+                .join('')
+                .toUpperCase();
+            const randomDigits = Math.floor(1000 + Math.random() * 9000); // 4-digit random number
+            
+            // Format: SH-{initials}-{timestamp}-{random}
+            return `SH-${senderInitials}-${timestamp.toString().slice(-6)}-${randomDigits}`;
+        }
+
+        // Then update the orderData before saving to Airtable
+        orderData[' Order ID '] = order.id;
+
+        // Save directly to Airtable with matching field names
         try {
-            const airtableRecord = await base('Orders').create([{ fields: airtableFields }]);
+            console.log('Attempting to save to Airtable with fields:', JSON.stringify(orderData, null, 2));
+            const airtableRecord = await base('Orders').create([{ fields: orderData }]);
             order.airtableId = airtableRecord[0].getId();
+            console.log('Successfully saved to Airtable with ID:', order.airtableId);
 
             res.status(201).json({
                 success: true,
@@ -146,6 +148,9 @@ app.post('/api/orders', async (req, res) => {
 
         } catch (airtableError) {
             console.error('Error saving to Airtable:', airtableError);
+            console.error('Error details:', airtableError.message);
+            if (airtableError.error) console.error('Additional error info:', airtableError.error);
+            
             res.status(500).json({
                 success: false,
                 error: 'Failed to save to Airtable',

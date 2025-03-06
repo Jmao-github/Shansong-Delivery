@@ -131,6 +131,9 @@
                                 <div class="location-input-group">
                                     <div class="location-icon delivery-icon">B</div>
                                     <input type="text" id="delivery-address" placeholder="Enter delivery address" required>
+                                    <button type="button" class="icon-btn">
+                                        <span class="location-dot-icon">📍</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -148,8 +151,7 @@
                     </div>
                     
                     <div class="form-actions">
-                        <button type="button" id="preview-order" class="secondary-btn">Preview Order</button>
-                        <button type="submit" id="submit-order" class="primary-btn">Place Order</button>
+                        <button type="button" id="preview-order" class="primary-btn">Preview Order & Select Payment</button>
                     </div>
                 </form>
             </div>
@@ -160,7 +162,7 @@
                     <span class="close-modal">&times;</span>
                     <h2>Order Preview</h2>
                     <div id="preview-content"></div>
-                    <button id="confirm-order" class="primary-btn">Confirm Order</button>
+                    <button id="confirm-order" class="primary-btn">Place Order</button>
                 </div>
             </div>
             
