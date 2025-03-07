@@ -1,3 +1,6 @@
+// Load environment variables
+require('dotenv').config();
+
 // Basic Node.js server for the ShanSong application
 
 const express = require('express');
@@ -6,6 +9,8 @@ const WebSocket = require('ws');
 const path = require('path');
 const bodyParser = require('body-parser');
 const Airtable = require('airtable');
+const multer = require('multer');
+const { uploadToSupabase, uploadMultipleFiles, deleteFile, supabase } = require('./utils/storage');
 
 // Initialize Airtable
 // In production, use environment variables for these values
@@ -25,6 +30,9 @@ const wss = new WebSocket.Server({ server });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Configure multer for memory storage
+const upload = multer({ storage: multer.memoryStorage() });
 
 // In-memory storage for orders and riders (would be replaced with a database)
 const orders = [];
@@ -77,86 +85,67 @@ wss.on('connection', (ws) => {
 app.post('/api/orders', async (req, res) => {
     try {
         const orderData = req.body;
-        console.log('Received order data:', JSON.stringify(orderData, null, 2));
-
-        // Update validation to match Airtable field names exactly
-        const requiredFields = [
-            ' Sender Name ', 
-            ' Sender Phone ', 
-            ' Receiver Name ', 
-            ' Receiver Phone ', 
-            ' Pickup Address ', 
-            ' Delivery Address '
-        ];
-
-        // Check if the field names in the request match what we expect
-        console.log('Available fields in request:', Object.keys(orderData));
-
-        const missingFields = requiredFields.filter(field => !orderData[field]);
-
-        if (missingFields.length > 0) {
-            console.log('Missing fields:', missingFields);
-            return res.status(400).json({
-                success: false,
-                error: `Missing required fields: ${missingFields.join(', ')}`
-            });
-        }
-
-        // Create order internally
+        
+        // Log the incoming request for debugging
+        console.log('Received order data:', JSON.stringify(orderData));
+        
+        // Generate order ID
+        const orderId = generateOrderId(orderData);
+        
+        // Prepare order data for Supabase
         const order = {
-            id: generateOrderId(orderData),
-            status: orderData[' Status '] || 'Placed',
-            createdAt: orderData[' Created At '] || new Date().toISOString(),
-            airtableFields: orderData
+            order_id: parseInt(orderId.replace(/\D/g, '')), // Extract numeric part
+            status: 'Placed',
+            created_at: new Date().toISOString(),
+            sender_name: orderData[' Sender Name '],
+            sender_phone: orderData[' Sender Phone '],
+            receiver_name: orderData[' Receiver Name '],
+            receiver_phone: orderData[' Receiver Phone '],
+            pickup_address: orderData[' Pickup Address '],
+            delivery_address: orderData[' Delivery Address '],
+            item_type: orderData[' Item Type '],
+            item_size: orderData[' Item Size '],
+            item_weight: orderData[' Item Weight '] || '',
+            special_requirements: orderData[' Special Requirements '] || '',
+            distance: parseFloat(orderData[' Distance ']) || 0,
+            estimated_time: parseInt(orderData[' Estimated Time ']) || 0,
+            price: parseFloat(orderData[' Price '].replace('$', '')) || 0,
+            payment_status: orderData[' Payment Status '],
+            payment_method: orderData[' Payment Method '],
+            attachments: orderData.attachments || null // URLs from previous file uploads
         };
 
-        // Save to in-memory storage
-        orders.push(order);
+        console.log('Prepared order data for Supabase:', JSON.stringify(order));
 
-        // Add this function to generate a meaningful Order ID
-        function generateOrderId(orderData) {
-            const timestamp = new Date().getTime();
-            const senderInitials = orderData[' Sender Name ']
-                .split(' ')
-                .map(name => name[0])
-                .join('')
-                .toUpperCase();
-            const randomDigits = Math.floor(1000 + Math.random() * 9000); // 4-digit random number
-            
-            // Format: SH-{initials}-{timestamp}-{random}
-            return `SH-${senderInitials}-${timestamp.toString().slice(-6)}-${randomDigits}`;
+        // Insert into Supabase with explicit headers
+        const { data, error } = await supabase
+            .from('orders')
+            .insert([order])
+            .select();
+
+        if (error) {
+            console.error('Supabase error details:', error);
+            throw error;
         }
 
-        // Then update the orderData before saving to Airtable
-        orderData[' Order ID '] = order.id;
+        console.log('Order successfully created in Supabase:', data);
 
-        // Save directly to Airtable with matching field names
+        // Also save to Airtable as backup
         try {
-            console.log('Attempting to save to Airtable with fields:', JSON.stringify(orderData, null, 2));
             const airtableRecord = await base('Orders').create([{ fields: orderData }]);
-            order.airtableId = airtableRecord[0].getId();
-            console.log('Successfully saved to Airtable with ID:', order.airtableId);
-
-            res.status(201).json({
-                success: true,
-                order: {
-                    id: order.id,
-                    airtableId: order.airtableId,
-                    status: order.status
-                }
-            });
-
+            console.log('Backup saved to Airtable:', airtableRecord[0].getId());
         } catch (airtableError) {
-            console.error('Error saving to Airtable:', airtableError);
-            console.error('Error details:', airtableError.message);
-            if (airtableError.error) console.error('Additional error info:', airtableError.error);
-            
-            res.status(500).json({
-                success: false,
-                error: 'Failed to save to Airtable',
-                details: airtableError.message
-            });
+            console.error('Airtable backup failed:', airtableError);
+            // Continue even if Airtable backup fails
         }
+
+        res.status(201).json({
+            success: true,
+            order: {
+                id: order.order_id,
+                status: order.status
+            }
+        });
     } catch (error) {
         console.error('Error creating order:', error);
         res.status(500).json({
@@ -181,6 +170,117 @@ app.get('/api/orders/:id', (req, res) => {
         success: true,
         order: order
     });
+});
+
+// File upload endpoint - now supports multiple files with type validation
+app.post('/api/upload', upload.array('files', 5), async (req, res) => {
+    try {
+        console.log('Received upload request');
+        console.log('Number of files:', req.files ? req.files.length : 0);
+        
+        if (!req.files || req.files.length === 0) {
+            console.log('No files received in request');
+            return res.status(400).json({ success: false, message: 'No files uploaded' });
+        }
+
+        // Validate file types
+        const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf', 'text/csv'];
+        const invalidFiles = req.files.filter(file => !allowedTypes.includes(file.mimetype));
+        
+        if (invalidFiles.length > 0) {
+            const invalidFileNames = invalidFiles.map(f => f.originalname).join(', ');
+            console.log(`Invalid file types detected: ${invalidFileNames}`);
+            return res.status(400).json({ 
+                success: false, 
+                message: `Invalid file types. Only JPG, PNG, PDF, and CSV are allowed. Rejected files: ${invalidFileNames}` 
+            });
+        }
+
+        // Log file details
+        req.files.forEach((file, index) => {
+            console.log(`File ${index + 1}:`, {
+                originalname: file.originalname,
+                mimetype: file.mimetype,
+                size: `${Math.round(file.size / 1024)} KB`
+            });
+        });
+
+        // Upload all files to Supabase
+        console.log('Starting file upload to Supabase...');
+        let urls = [];
+        
+        try {
+            urls = await uploadMultipleFiles(req.files);
+            console.log('Files uploaded successfully, URLs:', urls);
+        } catch (uploadError) {
+            console.error('Error during upload:', uploadError);
+            throw new Error(`Upload failed: ${uploadError.message}`);
+        }
+
+        // Return the URLs in the response
+        res.json({
+            success: true,
+            urls: urls,
+            count: urls.length
+        });
+    } catch (error) {
+        console.error('Upload error:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({
+            success: false,
+            message: 'File upload failed',
+            error: {
+                message: error.message,
+                details: error.details || {},
+                statusCode: error.statusCode
+            }
+        });
+    }
+});
+
+// File deletion endpoint
+app.post('/api/delete', async (req, res) => {
+    try {
+        console.log('Received delete request:', req.body);
+        const { url } = req.body;
+        
+        if (!url) {
+            console.log('Missing URL in delete request');
+            return res.status(400).json({ 
+                success: false, 
+                message: 'URL is required' 
+            });
+        }
+
+        console.log('Deleting file with URL:', url);
+        
+        try {
+            const result = await deleteFile(url);
+            
+            return res.json({
+                success: true,
+                message: 'File deleted successfully',
+                data: result
+            });
+        } catch (deleteError) {
+            console.error('Error from deleteFile function:', deleteError);
+            
+            return res.status(500).json({
+                success: false,
+                message: 'File deletion failed',
+                error: deleteError.message || 'Unknown error'
+            });
+        }
+    } catch (error) {
+        console.error('Delete endpoint error:', error);
+        console.error('Error stack:', error.stack);
+        
+        return res.status(500).json({
+            success: false,
+            message: 'Server error while processing deletion request',
+            error: error.message
+        });
+    }
 });
 
 // Function to process an order (assign rider, simulate delivery)
@@ -284,4 +384,21 @@ if (isVercel) {
     server.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });
-} 
+}
+
+// Helper function to generate order ID
+function generateOrderId(orderData) {
+    const timestamp = new Date().getTime();
+    const senderInitials = orderData[' Sender Name ']
+        .split(' ')
+        .map(name => name[0])
+        .join('')
+        .toUpperCase();
+    const randomDigits = Math.floor(1000 + Math.random() * 9000);
+    return `SH-${senderInitials}-${timestamp.toString().slice(-6)}-${randomDigits}`;
+}
+
+// Test route for file upload
+app.get('/test-upload', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'test.html'));
+}); 

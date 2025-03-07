@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Supabase Storage Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .preview {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            min-height: 100px;
+        }
+        .success {
+            color: green;
+            padding: 10px;
+            background-color: #e8f5e9;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            color: red;
+            padding: 10px;
+            background-color: #ffebee;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .uploaded-files {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .file-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .file-item img {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 10px;
+        }
+        .file-item button {
+            margin-top: 5px;
+            padding: 5px 10px;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .file-input-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .file-input-container input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .file-count {
+            margin-top: 5px;
+            font-size: 0.9em;
+            color: #555;
+        }
+        .file-name {
+            font-size: 0.8em;
+            margin: 5px 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+            word-break: break-word;
+        }
+        .file-types {
+            font-size: 0.9em;
+            color: #555;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Supabase Storage Test</h1>
+
+    <div class="section">
+        <h2>1. Upload Test</h2>
+        <div class="file-input-container">
+            <input type="file" id="fileInput" multiple accept=".png,.jpg,.jpeg,.pdf,.csv">
+            <div class="file-count">Selected: <span id="fileCount">0</span> files (max: 5)</div>
+            <div class="file-types">Allowed file types: PNG, JPG, PDF, CSV</div>
+            <button onclick="uploadFiles()">Upload Files</button>
+        </div>
+        <div id="uploadPreview" class="preview">
+            <div class="log" id="uploadLog"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>2. Uploaded Files</h2>
+        <div id="filesPreview" class="uploaded-files"></div>
+    </div>
+
+    <script>
+        // Update file count
+        document.getElementById('fileInput').addEventListener('change', function() {
+            const count = this.files.length;
+            document.getElementById('fileCount').textContent = count;
+            
+            // Warn if too many files selected
+            if (count > 5) {
+                log('Warning: Maximum 5 files allowed. Only the first 5 will be uploaded.', 'error');
+            }
+        });
+        
+        // Log function
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('uploadLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}`;
+            const div = document.createElement('div');
+            div.textContent = logMessage;
+            div.className = type;
+            logElement.appendChild(div);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // Upload files
+        async function uploadFiles() {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+            const filesPreview = document.getElementById('filesPreview');
+            
+            // Check current uploaded files count
+            const currentUploadedCount = filesPreview.querySelectorAll('.file-item').length;
+            
+            if (!files.length) {
+                log('Please select files to upload', 'error');
+                return;
+            }
+            
+            // Check if adding these files would exceed the 5-file limit
+            if (currentUploadedCount + files.length > 5) {
+                log(`Error: You can only upload a maximum of 5 files. You already have ${currentUploadedCount} files.`, 'error');
+                const remainingSlots = Math.max(0, 5 - currentUploadedCount);
+                
+                if (remainingSlots > 0) {
+                    log(`You can upload ${remainingSlots} more file(s).`, 'info');
+                } else {
+                    log('Please delete some files before uploading more.', 'info');
+                    return;
+                }
+            }
+
+            // Limit to available slots or 5 total
+            const maxToUpload = Math.min(files.length, 5 - currentUploadedCount);
+            const filesToUpload = Array.from(files).slice(0, maxToUpload);
+            
+            const formData = new FormData();
+            for (let i = 0; i < filesToUpload.length; i++) {
+                formData.append('files', filesToUpload[i]);
+                log(`Preparing to upload: ${filesToUpload[i].name} (${Math.round(filesToUpload[i].size / 1024)} KB)`);
+            }
+
+            try {
+                log('Starting upload...');
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`Upload successful! ${result.urls.length} file(s) uploaded.`, 'success');
+                    displayUploadedFiles(result.urls);
+                    
+                    // Clear file input after successful upload
+                    fileInput.value = '';
+                    document.getElementById('fileCount').textContent = '0';
+                } else {
+                    log(`Upload failed: ${result.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Display uploaded files
+        function displayUploadedFiles(urls) {
+            const filesPreview = document.getElementById('filesPreview');
+            
+            urls.forEach(url => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                
+                // Get file extension
+                const fileName = url.split('/').pop();
+                const fileExt = fileName.split('.').pop().toLowerCase();
+                
+                // Different display based on file type
+                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt)) {
+                    // Image files
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = 'Uploaded image';
+                    img.loading = 'lazy';
+                    fileItem.appendChild(img);
+                } else if (fileExt === 'pdf') {
+                    // PDF files
+                    const icon = document.createElement('div');
+                    icon.innerHTML = '<svg width="50" height="50" viewBox="0 0 24 24"><path fill="red" d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v1.25c0 .41-.34.75-.75.75s-.75-.34-.75-.75V8c0-.55.45-1 1-1H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2c-.28 0-.5-.22-.5-.5v-5c0-.28.22-.5.5-.5h2c.83 0 1.5.67 1.5 1.5v3zm4-3.75c0 .41-.34.75-.75.75H19v1h.75c.41 0 .75.34.75.75s-.34.75-.75.75H19v1.25c0 .41-.34.75-.75.75s-.75-.34-.75-.75V8c0-.55.45-1 1-1h1.25c.41 0 .75.34.75.75zM9 9.5h1v-1H9v1zM3 6c-.55 0-1 .45-1 1v13c0 1.1.9 2 2 2h13c.55 0 1-.45 1-1s-.45-1-1-1H5c-.55 0-1-.45-1-1V7c0-.55-.45-1-1-1zm11 5.5h1v-3h-1v3z"/></svg>';
+                    icon.style.textAlign = 'center';
+                    fileItem.appendChild(icon);
+                } else if (fileExt === 'csv') {
+                    // CSV files
+                    const icon = document.createElement('div');
+                    icon.innerHTML = '<svg width="50" height="50" viewBox="0 0 24 24"><path fill="green" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>';
+                    icon.style.textAlign = 'center';
+                    fileItem.appendChild(icon);
+                } else {
+                    // Other file types
+                    const icon = document.createElement('div');
+                    icon.innerHTML = '<svg width="50" height="50" viewBox="0 0 24 24"><path fill="#607D8B" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM16 18H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>';
+                    icon.style.textAlign = 'center';
+                    fileItem.appendChild(icon);
+                }
+                
+                // Add filename below the icon/image
+                const fileLabel = document.createElement('div');
+                fileLabel.className = 'file-name';
+                fileLabel.textContent = decodeURIComponent(fileName);
+                fileItem.appendChild(fileLabel);
+
+                // Add delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = () => deleteFile(url, fileItem);
+                fileItem.appendChild(deleteBtn);
+
+                filesPreview.appendChild(fileItem);
+            });
+        }
+
+        // Delete file
+        async function deleteFile(url, element) {
+            try {
+                // Extract and display the filename
+                const encodedFilename = url.split('/').pop();
+                const filename = decodeURIComponent(encodedFilename); // Decode for display
+                log(`Attempting to delete file: ${filename}`);
+                
+                // Show delete in progress
+                const deleteBtn = element.querySelector('button');
+                if (deleteBtn) {
+                    deleteBtn.textContent = 'Deleting...';
+                    deleteBtn.disabled = true;
+                }
+                
+                const response = await fetch('/api/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        url: url
+                    })
+                });
+
+                let result;
+                try {
+                    result = await response.json();
+                } catch (parseError) {
+                    throw new Error(`Failed to parse response: ${response.status} ${response.statusText}`);
+                }
+                
+                if (result.success) {
+                    element.remove();
+                    log('File deleted successfully', 'success');
+                } else {
+                    // Re-enable button
+                    if (deleteBtn) {
+                        deleteBtn.textContent = 'Delete';
+                        deleteBtn.disabled = false;
+                    }
+                    
+                    log(`Delete failed: ${result.message || 'Unknown error'}`, 'error');
+                    if (result.error) {
+                        log(`Error details: ${JSON.stringify(result.error)}`, 'error');
+                    }
+                }
+            } catch (error) {
+                log(`Error deleting file: ${error.message}`, 'error');
+                // Re-enable button
+                const deleteBtn = element.querySelector('button');
+                if (deleteBtn) {
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.disabled = false;
+                }
+            }
+        }
+    </script>
+</body>
+</html> 

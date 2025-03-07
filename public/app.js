@@ -62,93 +62,171 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Handle file upload
-    function handleFileUpload(files) {
+    async function handleFileUpload(files) {
         if (!files.length) return;
-        
+
         // Get existing files count
         const existingFiles = imagePreview.querySelectorAll('.file-container').length;
         const totalFiles = existingFiles + files.length;
-        
+
         // Check if exceeding max files (5)
         if (totalFiles > 5) {
             alert('You can upload a maximum of 5 files. Please remove some files and try again.');
             return;
         }
-        
-        // Create success message
-        const successMessage = document.createElement('div');
-        successMessage.className = 'upload-success';
-        successMessage.innerHTML = '✅ File uploaded successfully';
-        
-        // Track loaded images to update count only when all files are processed
-        let loadedImages = 0;
-        
-        // Create image preview
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            
-            // Create file container
-            const fileContainer = document.createElement('div');
-            fileContainer.className = 'file-container';
-            
-            // Create remove button
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'remove-file-btn';
-            removeBtn.innerHTML = '×';
-            removeBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                fileContainer.remove();
-                updateUploadButtonState();
+
+        try {
+            // Create FormData and append all files
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+
+            // Upload files
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
             });
-            
-            // Only process image files
-            if (!file.type.match('image.*')) {
-                const fileIcon = document.createElement('div');
-                fileIcon.className = 'file-icon';
-                fileIcon.innerHTML = '📄 ' + file.name;
-                
-                fileContainer.appendChild(fileIcon);
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.message || 'Upload failed');
+            }
+
+            // Process each uploaded URL
+            result.urls.forEach(url => {
+                // Create file container
+                const fileContainer = document.createElement('div');
+                fileContainer.className = 'file-container';
+
+                // Create remove button
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-file-btn';
+                removeBtn.innerHTML = '×';
+                removeBtn.onclick = () => deleteFile(url, fileContainer);
+
+                // Check if the URL is an image
+                const isImage = url.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                if (isImage) {
+                    const img = document.createElement('img');
+                    img.className = 'uploaded-image';
+                    img.src = url;
+                    img.onload = () => updateUploadButtonState();
+                    fileContainer.appendChild(img);
+                } else {
+                    const fileIcon = document.createElement('div');
+                    fileIcon.className = 'file-icon';
+                    fileIcon.innerHTML = '📄';
+                    fileContainer.appendChild(fileIcon);
+                }
+
                 fileContainer.appendChild(removeBtn);
                 imagePreview.appendChild(fileContainer);
-                
-                // Increment loaded images count
-                loadedImages++;
-                if (loadedImages === files.length) {
-                    updateUploadButtonState();
+
+                // Store URL in hidden input
+                const urlsInput = document.getElementById('uploaded-urls') || document.createElement('input');
+                if (!urlsInput.id) {
+                    urlsInput.type = 'hidden';
+                    urlsInput.id = 'uploaded-urls';
+                    document.querySelector('form').appendChild(urlsInput);
                 }
-                continue;
+                const urls = JSON.parse(urlsInput.value || '[]');
+                urls.push(url);
+                urlsInput.value = JSON.stringify(urls);
+            });
+
+            // Show success message
+            const successMessage = document.createElement('div');
+            successMessage.className = 'upload-success';
+            successMessage.innerHTML = '✅ Files uploaded successfully';
+            setTimeout(() => successMessage.remove(), 3000);
+            imagePreview.appendChild(successMessage);
+
+            // Update upload button state
+            updateUploadButtonState();
+        } catch (error) {
+            console.error('Upload error:', error);
+            alert(`Failed to upload files: ${error.message}`);
+        }
+    }
+    
+    // Delete file from Supabase
+    async function deleteFile(url, element) {
+        try {
+            // Extract and display the filename
+            const encodedFilename = url.split('/').pop();
+            const filename = decodeURIComponent(encodedFilename); // Decode for display
+            console.log(`Attempting to delete file: ${filename}`);
+            
+            // Show delete in progress
+            const removeBtn = element.querySelector('.remove-file-btn');
+            if (removeBtn) {
+                removeBtn.innerHTML = '...';
+                removeBtn.disabled = true;
             }
             
-            const reader = new FileReader();
+            const response = await fetch('/api/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    url: url
+                })
+            });
+
+            let result;
+            try {
+                result = await response.json();
+            } catch (parseError) {
+                throw new Error(`Failed to parse response: ${response.status} ${response.statusText}`);
+            }
             
-            reader.onload = function(e) {
-                const img = document.createElement('img');
-                img.src = e.target.result;
-                img.title = file.name;
-                img.className = 'uploaded-image';
+            if (result.success) {
+                // Remove from UI
+                element.remove();
                 
-                fileContainer.appendChild(img);
-                fileContainer.appendChild(removeBtn);
-                imagePreview.appendChild(fileContainer);
-                
-                // Increment loaded images count and update button state when all are loaded
-                loadedImages++;
-                if (loadedImages === files.length) {
-                    updateUploadButtonState();
+                // Remove URL from uploaded URLs
+                const urlsInput = document.getElementById('uploaded-urls');
+                if (urlsInput) {
+                    const urls = JSON.parse(urlsInput.value || '[]');
+                    const index = urls.indexOf(url);
+                    if (index > -1) {
+                        urls.splice(index, 1);
+                        urlsInput.value = JSON.stringify(urls);
+                    }
                 }
-            };
+                
+                // Update upload button state
+                updateUploadButtonState();
+                console.log('File deleted successfully');
+            } else {
+                // Re-enable button
+                if (removeBtn) {
+                    removeBtn.innerHTML = '×';
+                    removeBtn.disabled = false;
+                }
+                
+                console.error(`Delete failed: ${result.message || 'Unknown error'}`);
+                if (result.error) {
+                    console.error(`Error details: ${result.error}`);
+                }
+                
+                alert(`Failed to delete file: ${result.message || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error deleting file:', error);
             
-            reader.readAsDataURL(file);
+            // Re-enable button
+            const removeBtn = element.querySelector('.remove-file-btn');
+            if (removeBtn) {
+                removeBtn.innerHTML = '×';
+                removeBtn.disabled = false;
+            }
+            
+            alert(`Failed to delete file: ${error.message}`);
         }
-        
-        // Add success message
-        imagePreview.appendChild(successMessage);
-        
-        // Remove success message after 3 seconds
-        setTimeout(() => {
-            const successMessages = imagePreview.querySelectorAll('.upload-success');
-            successMessages.forEach(msg => msg.remove());
-        }, 3000);
     }
     
     // Update upload button state based on file count
@@ -307,65 +385,58 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function submitOrder() {
-        // Get form values
-        const senderName = document.getElementById('sender-name').value;
-        const senderPhone = document.getElementById('sender-phone').value;
-        const receiverName = document.getElementById('receiver-name').value;
-        const receiverPhone = document.getElementById('receiver-phone').value;
-        const itemType = document.getElementById('item-type').value;
-        const itemSize = document.getElementById('item-size').value;
-        const itemWeight = document.getElementById('item-weight') ? document.getElementById('item-weight').value : '';
-        const specialRequirements = document.getElementById('special-requirements').value;
-        const pickupAddress = document.getElementById('pickup-address').value;
-        const deliveryAddress = document.getElementById('delivery-address').value;
-        
-        // Get distance and time values
-        const distance = document.getElementById('distance-value').textContent;
-        const estimatedTime = document.getElementById('time-value').textContent;
-        
-        // Calculate price (simple formula based on distance)
-        const distanceValue = parseFloat(distance.replace(/[^0-9.]/g, '')) || 0;
-        const price = (10 + (distanceValue * 2)).toFixed(2);
-        
-        // Create order object
-        const orderData = {
-            ' Sender Name ': senderName,
-            ' Sender Phone ': senderPhone,
-            ' Receiver Name ': receiverName,
-            ' Receiver Phone ': receiverPhone,
-            ' Pickup Address ': pickupAddress,
-            ' Delivery Address ': deliveryAddress,
-            ' Item Type ': itemType,
-            ' Item Size ': itemSize,
-            ' Item Weight ': itemWeight || '',
-            ' Special Requirements ': specialRequirements || '',
-            ' Distance ': distanceValue.toString(),
-            ' Estimated Time ': estimatedTime.replace(/[^0-9]/g, ''),
-            ' Price ': '$' + price,
-            ' Status ': 'Placed',
-            ' Created At ': new Date().toISOString(),
-            ' Payment Status ': 'Unpaid',
-            ' Payment Method ': ''
-        };
+        // Validate form
+        if (!validateOrderForm()) {
+            return;
+        }
         
         // Show loading indicator
         const loadingIndicator = document.createElement('div');
         loadingIndicator.className = 'loading-indicator';
-        loadingIndicator.textContent = 'Processing your order...';
+        loadingIndicator.innerHTML = '<div class="spinner"></div><p>Processing your order...</p>';
         document.body.appendChild(loadingIndicator);
         
+        // Get form data
+        const orderData = getOrderFormData();
+        
+        // Get pickup and delivery addresses for tracking
+        const pickupAddress = document.getElementById('pickup-address').value;
+        const deliveryAddress = document.getElementById('delivery-address').value;
+        
         // Get the base URL with the correct protocol
-        const baseUrl = window.location.origin;
+        const baseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:3001' 
+            : window.location.origin;
+        
+        // Log order data for debugging
+        console.log('Submitting order data:', orderData);
+        console.log('Using API endpoint:', `${baseUrl}/api/orders`);
         
         // Submit order to API
         fetch(`${baseUrl}/api/orders`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             },
             body: JSON.stringify(orderData)
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', [...response.headers.entries()]);
+            
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('Error response body:', text);
+                    try {
+                        return Promise.reject(JSON.parse(text));
+                    } catch (e) {
+                        return Promise.reject(new Error(`Server responded with status ${response.status}: ${text}`));
+                    }
+                });
+            }
+            return response.json();
+        })
         .then(data => {
             // Remove loading indicator
             document.body.removeChild(loadingIndicator);
@@ -1011,4 +1082,105 @@ function initTrackingMap(pickupAddress, deliveryAddress) {
             });
         }
     });
+}
+
+// Function to validate the order form
+function validateOrderForm() {
+    // Required fields
+    const requiredFields = [
+        'sender-name', 'sender-phone', 
+        'receiver-name', 'receiver-phone',
+        'pickup-address', 'delivery-address',
+        'item-type', 'item-size'
+    ];
+    
+    let isValid = true;
+    
+    // Check each required field
+    requiredFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (!field || !field.value.trim()) {
+            isValid = false;
+            // Add error styling
+            if (field) {
+                field.classList.add('error');
+                // Add error message if not already present
+                const errorMsg = field.parentNode.querySelector('.error-message');
+                if (!errorMsg) {
+                    const msg = document.createElement('div');
+                    msg.className = 'error-message';
+                    msg.textContent = 'This field is required';
+                    field.parentNode.appendChild(msg);
+                }
+            }
+        } else if (field) {
+            // Remove error styling
+            field.classList.remove('error');
+            // Remove error message if present
+            const errorMsg = field.parentNode.querySelector('.error-message');
+            if (errorMsg) {
+                field.parentNode.removeChild(errorMsg);
+            }
+        }
+    });
+    
+    // Check if addresses are valid
+    const pickupAddress = document.getElementById('pickup-address').value;
+    const deliveryAddress = document.getElementById('delivery-address').value;
+    
+    if (pickupAddress === deliveryAddress && isValid) {
+        alert('Pickup and delivery addresses cannot be the same');
+        isValid = false;
+    }
+    
+    return isValid;
+}
+
+// Function to get form data
+function getOrderFormData() {
+    // Get form values
+    const senderName = document.getElementById('sender-name').value;
+    const senderPhone = document.getElementById('sender-phone').value;
+    const receiverName = document.getElementById('receiver-name').value;
+    const receiverPhone = document.getElementById('receiver-phone').value;
+    const itemType = document.getElementById('item-type').value;
+    const itemSize = document.getElementById('item-size').value;
+    const itemWeight = document.getElementById('item-weight') ? document.getElementById('item-weight').value : '';
+    const specialRequirements = document.getElementById('special-requirements').value;
+    const pickupAddress = document.getElementById('pickup-address').value;
+    const deliveryAddress = document.getElementById('delivery-address').value;
+    
+    // Get distance and time values
+    const distance = document.getElementById('distance-value').textContent;
+    const estimatedTime = document.getElementById('time-value').textContent;
+    
+    // Calculate price (simple formula based on distance)
+    const distanceValue = parseFloat(distance.replace(/[^0-9.]/g, '')) || 0;
+    const price = (10 + (distanceValue * 2)).toFixed(2);
+    
+    // Get uploaded files
+    const urlsInput = document.getElementById('uploaded-urls');
+    const attachments = urlsInput ? JSON.parse(urlsInput.value || '[]') : [];
+    
+    // Create order object
+    return {
+        ' Sender Name ': senderName,
+        ' Sender Phone ': senderPhone,
+        ' Receiver Name ': receiverName,
+        ' Receiver Phone ': receiverPhone,
+        ' Pickup Address ': pickupAddress,
+        ' Delivery Address ': deliveryAddress,
+        ' Item Type ': itemType,
+        ' Item Size ': itemSize,
+        ' Item Weight ': itemWeight || '',
+        ' Special Requirements ': specialRequirements || '',
+        ' Distance ': distanceValue.toString(),
+        ' Estimated Time ': estimatedTime.replace(/[^0-9]/g, ''),
+        ' Price ': '$' + price,
+        ' Status ': 'Placed',
+        ' Created At ': new Date().toISOString(),
+        ' Payment Status ': 'Unpaid',
+        ' Payment Method ': '',
+        'attachments': attachments  // Include the file URLs
+    };
 } 
