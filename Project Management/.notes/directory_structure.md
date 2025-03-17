@@ -23,7 +23,6 @@ This document provides an overview of the project's directory structure, helping
 ```
 .
 ├── .cursorrules                 # AI assistant configuration rules
-├── .cursorignore                # Files to ignore in AI processing
 ├── .env                         # Environment variables (not in version control)
 ├── package.json                 # Project dependencies and scripts
 ├── server.js                    # Main server application

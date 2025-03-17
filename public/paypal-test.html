@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayPal Integration Test - ShanSong</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .test-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 30px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .test-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        
+        .test-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .form-group label {
+            font-weight: bold;
+            color: #4a6fa5;
+        }
+        
+        .form-group input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f0f8ff;
+            border-radius: 8px;
+            border-left: 4px solid #4a6fa5;
+        }
+        
+        .result-section pre {
+            white-space: pre-wrap;
+            word-break: break-all;
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-success {
+            background-color: #28a745;
+        }
+        
+        .status-error {
+            background-color: #dc3545;
+        }
+        
+        .status-pending {
+            background-color: #ffc107;
+        }
+        
+        #paypal-button-container {
+            margin-top: 20px;
+        }
+    </style>
+    <!-- PayPal SDK -->
+    <script src="https://www.paypal.com/sdk/js?client-id=AUEcun4cVXfSVrGW502hZhoBFrqhxMZ8xtUUU9wc-R20wJrQK-OuY9cUw6emSTWeDxgVcYwc08KJ8LXx&currency=USD"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <h1>ShanSong</h1>
+                <p>PayPal Integration Test</p>
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="paypal-test.html" class="active">PayPal Test</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main>
+            <div class="test-container">
+                <div class="test-header">
+                    <h1>PayPal Integration Test</h1>
+                    <p>Use this page to test the PayPal integration for ShanSong</p>
+                </div>
+                
+                <div class="test-section">
+                    <h2>Test 1: Direct PayPal Button</h2>
+                    <p>This test uses the PayPal JavaScript SDK to create a payment button directly on the page.</p>
+                    
+                    <div class="test-form">
+                        <div class="form-group">
+                            <label for="test1-amount">Amount (USD)</label>
+                            <input type="number" id="test1-amount" value="10.00" min="1" step="0.01">
+                        </div>
+                        
+                        <div id="paypal-button-container"></div>
+                    </div>
+                </div>
+                
+                <div class="test-section">
+                    <h2>Test 2: Server-Side Integration</h2>
+                    <p>This test uses the server-side PayPal integration to create and process payments.</p>
+                    
+                    <div class="test-form">
+                        <div class="form-group">
+                            <label for="test2-order-id">Order ID (any number for testing)</label>
+                            <input type="number" id="test2-order-id" value="12345">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="test2-amount">Amount (USD)</label>
+                            <input type="number" id="test2-amount" value="15.00" min="1" step="0.01">
+                        </div>
+                        
+                        <div class="button-group">
+                            <button id="test2-button" class="primary-btn">Initialize Payment</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="result-section" class="result-section" style="display: none;">
+                    <h2>Test Results</h2>
+                    <div id="result-status"></div>
+                    <pre id="result-data"></pre>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>ShanSong Delivery</h3>
+                    <p>Fast, reliable delivery services for all your needs.</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Contact Us</h3>
+                    <p>Email: info@shansong.com</p>
+                    <p>Phone: (123) 456-7890</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2023 ShanSong Delivery. All rights reserved.</p>
+            </div>
+        </footer>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Test 1: PayPal Button
+            initPayPalButton();
+            
+            // Test 2: Server-Side Integration
+            document.getElementById('test2-button').addEventListener('click', function() {
+                initializeServerSidePayment();
+            });
+        });
+        
+        function initPayPalButton() {
+            paypal.Buttons({
+                // Set up the transaction
+                createOrder: function(data, actions) {
+                    const amount = document.getElementById('test1-amount').value;
+                    return actions.order.create({
+                        purchase_units: [{
+                            amount: {
+                                value: amount
+                            },
+                            description: 'ShanSong PayPal Test Payment'
+                        }]
+                    });
+                },
+                
+                // Finalize the transaction
+                onApprove: function(data, actions) {
+                    return actions.order.capture().then(function(orderData) {
+                        // Show a success message
+                        showResult(true, 'Direct PayPal payment successful!', orderData);
+                    });
+                },
+                
+                // Handle errors
+                onError: function(err) {
+                    console.error('PayPal Error:', err);
+                    showResult(false, 'PayPal Error', err);
+                }
+            }).render('#paypal-button-container');
+        }
+        
+        async function initializeServerSidePayment() {
+            try {
+                const orderId = document.getElementById('test2-order-id').value;
+                const amount = document.getElementById('test2-amount').value;
+                
+                // Show pending status
+                showResult('pending', 'Initializing payment...', { orderId, amount });
+                
+                // Call the payment initialization API
+                const response = await fetch('/api/payment/initialize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        orderId: parseInt(orderId),
+                        amount: parseFloat(amount),
+                        paymentMethod: 'PayPal'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showResult(true, 'Payment initialized successfully!', result);
+                    
+                    // Ask user if they want to proceed to PayPal
+                    if (confirm('Payment initialized successfully! Proceed to PayPal to complete the payment?')) {
+                        window.location.href = result.approvalUrl;
+                    }
+                } else {
+                    showResult(false, result.message || 'Failed to initialize payment', result);
+                }
+            } catch (error) {
+                console.error('Error initializing payment:', error);
+                showResult(false, 'Error initializing payment', { error: error.message });
+            }
+        }
+        
+        function showResult(status, message, data) {
+            const resultSection = document.getElementById('result-section');
+            const resultStatus = document.getElementById('result-status');
+            const resultData = document.getElementById('result-data');
+            
+            resultSection.style.display = 'block';
+            
+            let statusHtml = '';
+            if (status === true) {
+                statusHtml = '<span class="status-indicator status-success"></span> Success: ';
+            } else if (status === false) {
+                statusHtml = '<span class="status-indicator status-error"></span> Error: ';
+            } else {
+                statusHtml = '<span class="status-indicator status-pending"></span> Pending: ';
+            }
+            
+            resultStatus.innerHTML = statusHtml + message;
+            resultData.textContent = JSON.stringify(data, null, 2);
+            
+            // Scroll to result section
+            resultSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html> 

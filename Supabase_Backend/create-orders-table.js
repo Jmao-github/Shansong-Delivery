@@ -57,6 +57,8 @@ Columns:
 - price: decimal
 - payment_status: varchar
 - payment_method: varchar
+- payment_reference: varchar
+- payment_details: jsonb
 - attachments: text[]
                 `);
                 

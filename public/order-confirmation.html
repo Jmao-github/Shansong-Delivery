@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation - ShanSong Delivery</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="/js/payment-history.js"></script>
+    <style>
+        .confirmation-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 30px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .confirmation-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .confirmation-header h1 {
+            color: #4a6fa5;
+            margin-bottom: 10px;
+        }
+        
+        .confirmation-details {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        
+        .confirmation-details h2 {
+            color: #4a6fa5;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+        
+        .detail-row {
+            display: flex;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .detail-label {
+            flex: 0 0 150px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .detail-value {
+            flex: 1;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+        
+        .status-paid {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-processing {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-cancelled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-pending {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .actions {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .actions button {
+            margin: 0 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+        }
+        
+        .loading img {
+            width: 50px;
+            height: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <h1>ShanSong</h1>
+                <p>Instant Delivery</p>
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="#">Track Order</a></li>
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main>
+            <div class="confirmation-container">
+                <div class="confirmation-header">
+                    <h1>Order Confirmation</h1>
+                    <p>Thank you for using ShanSong Delivery!</p>
+                </div>
+                
+                <div id="loading" class="loading">
+                    <img src="https://i.gifer.com/ZKZg.gif" alt="Loading">
+                    <p>Loading order details...</p>
+                </div>
+                
+                <div id="confirmation-content" style="display: none;">
+                    <div class="confirmation-details">
+                        <h2>Order Details</h2>
+                        <div class="detail-row">
+                            <div class="detail-label">Order ID:</div>
+                            <div id="order-id" class="detail-value"></div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">Payment Status:</div>
+                            <div class="detail-value">
+                                <span id="payment-status" class="status-badge"></span>
+                            </div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">Payment Method:</div>
+                            <div id="payment-method" class="detail-value"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="status-message" class="confirmation-details">
+                        <!-- Status-specific message will be inserted here -->
+                    </div>
+                    
+                    <div id="payment-history" class="confirmation-details"></div>
+                    
+                    <div class="actions">
+                        <button id="track-order-btn" class="primary-btn">Track Your Order</button>
+                        <button id="home-btn" class="secondary-btn" onclick="window.location.href='index.html'">Back to Home</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>ShanSong Delivery</h3>
+                    <p>Fast, reliable delivery services for all your needs.</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Contact Us</h3>
+                    <p>Email: info@shansong.com</p>
+                    <p>Phone: (123) 456-7890</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Follow Us</h3>
+                    <div class="social-icons">
+                        <a href="#"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook"></a>
+                        <a href="#"><img src="https://cdn-icons-png.flaticon.com/512/733/733579.png" alt="Twitter"></a>
+                        <a href="#"><img src="https://cdn-icons-png.flaticon.com/512/733/733558.png" alt="Instagram"></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2023 ShanSong Delivery. All rights reserved.</p>
+            </div>
+        </footer>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get order ID and status from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderId = urlParams.get('orderId');
+            const status = urlParams.get('status');
+            
+            if (!orderId) {
+                showError('No order ID provided');
+                return;
+            }
+            
+            // Set order ID in the page
+            document.getElementById('order-id').textContent = orderId;
+            
+            // If status is provided in URL, use it (from PayPal redirect)
+            if (status) {
+                updatePageWithStatus(status, 'PayPal');
+            } else {
+                // Otherwise fetch the latest status from the API
+                fetchOrderStatus(orderId);
+            }
+            
+            // Set up track order button
+            document.getElementById('track-order-btn').addEventListener('click', function() {
+                window.location.href = `tracking.html?orderId=${orderId}`;
+            });
+            
+            // Initialize payment history component
+            if (orderId) {
+                new PaymentHistory('payment-history', orderId);
+            }
+            
+            // Check if there's an abandoned payment that can be resumed
+            function checkForAbandonedPayment(orderId) {
+                fetch(`/api/payment/status/${orderId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.paymentStatus === 'Abandoned') {
+                            // Show resume payment button
+                            const statusMessageElement = document.getElementById('status-message');
+                            statusMessageElement.innerHTML += `
+                                <div class="resume-payment-section">
+                                    <p>Your payment was not completed. Would you like to try again?</p>
+                                    <button id="resume-payment-btn" class="primary-btn">Resume Payment</button>
+                                </div>
+                            `;
+                            
+                            // Add event listener to resume payment button
+                            document.getElementById('resume-payment-btn').addEventListener('click', function() {
+                                // Initialize a new payment for this order
+                                const amount = data.amount || 0;
+                                
+                                fetch('/api/payment/initialize', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        orderId: orderId,
+                                        amount: amount,
+                                        paymentMethod: 'PayPal'
+                                    })
+                                })
+                                .then(response => response.json())
+                                .then(result => {
+                                    if (result.success) {
+                                        // Redirect to PayPal
+                                        window.location.href = result.approvalUrl;
+                                    } else {
+                                        alert('Failed to initialize payment: ' + (result.message || 'Unknown error'));
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error resuming payment:', error);
+                                    alert('Error resuming payment: ' + error.message);
+                                });
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking for abandoned payment:', error);
+                    });
+            }
+            
+            // Check for abandoned payment when page loads
+            if (orderId && status && status.toLowerCase() === 'cancelled') {
+                checkForAbandonedPayment(orderId);
+            }
+        });
+        
+        function fetchOrderStatus(orderId) {
+            fetch(`/api/payment/status/${orderId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch order status');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        updatePageWithStatus(data.paymentStatus, data.paymentMethod);
+                    } else {
+                        showError(data.message || 'Failed to get order status');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching order status:', error);
+                    showError('Error loading order details. Please try again later.');
+                });
+        }
+        
+        function updatePageWithStatus(status, paymentMethod) {
+            // Hide loading indicator
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('confirmation-content').style.display = 'block';
+            
+            // Update payment status
+            const statusElement = document.getElementById('payment-status');
+            statusElement.textContent = status;
+            
+            // Add appropriate status class
+            if (status.toLowerCase() === 'paid') {
+                statusElement.className = 'status-badge status-paid';
+            } else if (status.toLowerCase() === 'processing') {
+                statusElement.className = 'status-badge status-processing';
+            } else if (status.toLowerCase() === 'cancelled') {
+                statusElement.className = 'status-badge status-cancelled';
+            } else {
+                statusElement.className = 'status-badge status-pending';
+            }
+            
+            // Update payment method
+            document.getElementById('payment-method').textContent = paymentMethod || 'Not specified';
+            
+            // Update status message
+            const statusMessageElement = document.getElementById('status-message');
+            
+            if (status.toLowerCase() === 'paid') {
+                statusMessageElement.innerHTML = `
+                    <h2>Payment Successful!</h2>
+                    <p>Your payment has been processed successfully. Your order is now being prepared for delivery.</p>
+                    <p>You can track your order status using the "Track Your Order" button below.</p>
+                `;
+            } else if (status.toLowerCase() === 'processing') {
+                statusMessageElement.innerHTML = `
+                    <h2>Payment Processing</h2>
+                    <p>Your payment is currently being processed. This usually takes a few minutes.</p>
+                    <p>You will receive a confirmation once the payment is complete.</p>
+                `;
+            } else if (status.toLowerCase() === 'cancelled') {
+                statusMessageElement.innerHTML = `
+                    <h2>Payment Cancelled</h2>
+                    <p>Your payment has been cancelled. No charges have been made to your account.</p>
+                    <p>If you still want to place this order, please return to the order page and try again.</p>
+                `;
+            } else {
+                statusMessageElement.innerHTML = `
+                    <h2>Payment Pending</h2>
+                    <p>Your payment is pending. Please complete the payment process to confirm your order.</p>
+                `;
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('confirmation-content').style.display = 'block';
+            
+            document.getElementById('order-id').textContent = 'Error';
+            document.getElementById('payment-status').textContent = 'Error';
+            document.getElementById('payment-status').className = 'status-badge status-cancelled';
+            document.getElementById('payment-method').textContent = 'N/A';
+            
+            document.getElementById('status-message').innerHTML = `
+                <h2>Error</h2>
+                <p>${message}</p>
+                <p>Please try again or contact customer support if the problem persists.</p>
+            `;
+        }
+    </script>
+</body>
+</html> 

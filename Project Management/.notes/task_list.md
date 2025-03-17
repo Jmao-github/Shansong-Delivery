@@ -33,10 +33,11 @@ This document tracks current and upcoming tasks for the ShanSong project. It ser
 ## Medium Priority Tasks
 
 ### Payment API & Status Tracking
-- 🔴 **[P2]** Integrate with payment gateway
-- 🔴 **[P2]** Implement payment status webhooks
-- 🔴 **[P2]** Add support for multiple payment methods
-- 🔴 **[P2]** Create payment receipt generation
+- 🟢 **[P2]** Integrate with payment gateway (PayPal integration complete)
+- 🟢 **[P2]** Implement payment status webhooks (Implementation complete)
+- 🟡 **[P2]** Add support for multiple payment methods (PayPal implemented, WeChat pending)
+- 🟢 **[P2]** Create payment receipt generation (Implementation complete)
+- 🟢 **[P2]** Implement abandoned payment detection (Implementation complete)
 
 ### General Improvements
 - 🔴 **[P2]** Optimize database queries for better performance
@@ -57,6 +58,7 @@ This document tracks current and upcoming tasks for the ShanSong project. It ser
 - 🟢 File Attachment System
 - 🟢 Order Data Backup system
 - 🟢 Static Content Delivery system
+- 🟢 PayPal Payment Integration
 
 ## How to Use This Document
 - **For Planning**: Use this list to prioritize development efforts

@@ -10,6 +10,18 @@ const path = require('path');
 const bodyParser = require('body-parser');
 const multer = require('multer');
 const { uploadToSupabase, uploadMultipleFiles, deleteFile, supabase } = require('./utils/storage');
+// Import payment controller
+const { 
+    initializePayment, 
+    capturePaypalPayment, 
+    cancelPaypalPayment, 
+    getPaymentStatus,
+    getPaymentHistory
+} = require('./utils/payment/paymentController');
+const { handlePayPalWebhook } = require('./utils/payment/webhooks');
+const { 
+    scheduleAbandonedPaymentChecks 
+} = require('./utils/payment/abandonedPayments');
 
 // Initialize Airtable only if enabled
 const USE_AIRTABLE_BACKUP = process.env.USE_AIRTABLE_BACKUP === 'true';
@@ -388,9 +400,11 @@ if (isVercel) {
     module.exports = app;
 } else {
     // Start server normally for local development
-    const PORT = process.env.PORT || 3001;
+    const PORT = process.env.PORT || 3002;
     server.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
+        console.log(`PayPal test page available at: http://localhost:${PORT}/paypal-test`);
+        console.log(`PayPal API endpoint: http://localhost:${PORT}/api/payment/initialize`);
     });
 }
 
@@ -409,4 +423,89 @@ function generateOrderId(orderData) {
 // Test route for file upload
 app.get('/test-upload', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'test.html'));
+});
+
+// Payment API Routes
+app.post('/api/payment/initialize', initializePayment);
+app.get('/api/paypal/capture', capturePaypalPayment);
+app.get('/api/paypal/cancel', cancelPaypalPayment);
+app.get('/api/payment/status/:orderId', getPaymentStatus);
+app.get('/api/payment/history/:orderId', getPaymentHistory);
+
+// PayPal test page route
+app.get('/paypal-test', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'paypal-test.html'));
+});
+
+// PayPal webhook route
+app.post('/api/webhooks/paypal', express.raw({ type: 'application/json' }), handlePayPalWebhook);
+
+// Start the abandoned payment detection system
+scheduleAbandonedPaymentChecks(15); // Check every 15 minutes
+
+// Add a route to check payment status by order ID
+app.get('/api/payment/check/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    // Get the latest payment for this order
+    const { data: payment, error } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+      
+    if (error) {
+      return res.status(404).json({
+        success: false,
+        message: 'No payment found for this order'
+      });
+    }
+    
+    // If the payment is still pending and was created more than 30 minutes ago, mark it as abandoned
+    const thirtyMinutesAgo = new Date();
+    thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+    
+    if (payment.status === 'Pending' && new Date(payment.created_at) < thirtyMinutesAgo) {
+      // Mark as abandoned
+      const { error: updateError } = await supabase
+        .from('payments')
+        .update({
+          status: 'Abandoned',
+          payment_details: {
+            ...payment.payment_details,
+            abandoned_at: new Date().toISOString(),
+            reason: 'Payment process not completed within 30 minutes'
+          }
+        })
+        .eq('id', payment.id);
+        
+      if (updateError) {
+        console.error('Error updating abandoned payment:', updateError);
+      } else {
+        payment.status = 'Abandoned';
+      }
+    }
+    
+    return res.json({
+      success: true,
+      payment: {
+        id: payment.payment_id,
+        status: payment.status,
+        method: payment.payment_method,
+        amount: payment.amount,
+        currency: payment.currency,
+        createdAt: payment.created_at
+      }
+    });
+  } catch (error) {
+    console.error('Error checking payment status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking payment status',
+      error: error.message
+    });
+  }
 }); 

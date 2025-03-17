@@ -339,16 +339,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         </label>
                     </div>
                 </div>
-                <div id="payment-qr-container" class="payment-qr-container">
-                    <div id="paypal-qr" class="payment-qr active">
-                        <img src="https://via.placeholder.com/200x200?text=PayPal+QR+Code" alt="PayPal QR Code">
-                        <p>Scan with PayPal app to pay</p>
-                    </div>
-                    <div id="wechat-qr" class="payment-qr">
-                        <img src="https://via.placeholder.com/200x200?text=WeChat+Pay+QR+Code" alt="WeChat Pay QR Code">
-                        <p>Scan with WeChat to pay</p>
-                    </div>
-                </div>
             </div>
         `;
         
@@ -356,17 +346,11 @@ document.addEventListener('DOMContentLoaded', function() {
         previewContent.innerHTML = previewHTML;
         orderPreviewModal.style.display = 'block';
         
-        // Add payment method change event
-        document.querySelectorAll('input[name="payment-method"]').forEach(input => {
-            input.addEventListener('change', function() {
-                document.querySelectorAll('.payment-qr').forEach(qr => qr.classList.remove('active'));
-                if (this.value === 'PayPal') {
-                    document.getElementById('paypal-qr').classList.add('active');
-                } else if (this.value === 'WeChat') {
-                    document.getElementById('wechat-qr').classList.add('active');
-                }
-            });
-        });
+        // Remove the PayPal button container from the modal
+        const paypalQrContainer = document.getElementById('payment-qr-container');
+        if (paypalQrContainer) {
+            paypalQrContainer.remove();
+        }
         
         // Simulate distance calculation
         setTimeout(() => {
@@ -399,18 +383,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get form data
         const orderData = getOrderFormData();
         
-        // Get pickup and delivery addresses for tracking
-        const pickupAddress = document.getElementById('pickup-address').value;
-        const deliveryAddress = document.getElementById('delivery-address').value;
+        // Get the selected payment method
+        const paymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
+        
+        // Update the payment method in the order data
+        orderData[' Payment Method '] = paymentMethod;
         
         // Get the base URL with the correct protocol
         const baseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? 'http://localhost:3001' 
+            ? `${window.location.protocol}//${window.location.hostname}:${window.location.port}` 
             : window.location.origin;
-        
-        // Log order data for debugging
-        console.log('Submitting order data:', orderData);
-        console.log('Using API endpoint:', `${baseUrl}/api/orders`);
         
         // Submit order to API
         fetch(`${baseUrl}/api/orders`, {
@@ -442,29 +424,31 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.removeChild(loadingIndicator);
             
             if (data.success) {
+                // Store the order ID
+                const orderId = data.order.id;
+                
+                // Get the order amount
+                const amount = parseFloat(orderData[' Price '].replace('$', ''));
+                
                 // Close modal
                 closeModal();
                 
-                // Store order ID for tracking
-                const orderId = data.order.id;
-                
-                // Show order tracking
-                document.getElementById('order-form-container').style.display = 'none';
-                document.getElementById('order-tracking-container').style.display = 'block';
-                document.getElementById('tracking-order-id').textContent = orderId;
-                
-                // Update tracking addresses
-                document.getElementById('tracking-pickup-address').textContent = pickupAddress;
-                document.getElementById('tracking-delivery-address').textContent = deliveryAddress;
-                
-                // Initialize the tracking map with the addresses
-                initTrackingMap(pickupAddress, deliveryAddress);
-                
-                // Connect to WebSocket for real-time updates
-                connectToWebSocket(orderId);
-                
-                // Simulate order progress (this will be replaced by real updates from WebSocket)
-                simulateOrderProgress();
+                if (paymentMethod === 'PayPal') {
+                    // Show a new loading indicator for payment initialization
+                    const paymentLoadingIndicator = document.createElement('div');
+                    paymentLoadingIndicator.className = 'loading-indicator';
+                    paymentLoadingIndicator.innerHTML = '<div class="spinner"></div><p>Redirecting to PayPal...</p>';
+                    document.body.appendChild(paymentLoadingIndicator);
+                    
+                    // Initialize PayPal payment
+                    initializePayPalPayment(orderId, amount, paymentLoadingIndicator);
+                } else if (paymentMethod === 'WeChat') {
+                    // For WeChat payment (not implemented yet)
+                    alert(`WeChat payment is not implemented yet. Order created with ID: ${orderId}`);
+                    
+                    // Show order tracking
+                    showOrderTracking(orderId, orderData[' Pickup Address '], orderData[' Delivery Address ']);
+                }
             } else {
                 alert('Failed to place order. Please try again.');
             }
@@ -472,7 +456,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             document.body.removeChild(loadingIndicator);
             console.error('Error submitting order:', error);
-            alert('An error occurred. Please try again.');
+            alert('Error submitting order: ' + error.message);
         });
     }
     
@@ -1183,4 +1167,90 @@ function getOrderFormData() {
         ' Payment Method ': '',
         'attachments': attachments  // Include the file URLs
     };
+}
+
+// Initialize PayPal payment
+function initializePayPalPayment(orderId, amount, loadingIndicator) {
+    // Get the base URL with the correct protocol
+    const baseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+        ? `${window.location.protocol}//${window.location.hostname}:${window.location.port}` 
+        : window.location.origin;
+    
+    // Call the payment initialization API
+    fetch(`${baseUrl}/api/payment/initialize`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            orderId: orderId,
+            amount: amount,
+            paymentMethod: 'PayPal'
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('Error response body:', text);
+                try {
+                    return Promise.reject(JSON.parse(text));
+                } catch (e) {
+                    return Promise.reject(new Error(`Server responded with status ${response.status}: ${text}`));
+                }
+            });
+        }
+        return response.json();
+    })
+    .then(result => {
+        // Remove loading indicator if it exists
+        if (loadingIndicator && document.body.contains(loadingIndicator)) {
+            document.body.removeChild(loadingIndicator);
+        }
+        
+        if (result.success) {
+            // Redirect to PayPal approval URL
+            window.location.href = result.approvalUrl;
+        } else {
+            throw new Error(result.message || 'Failed to initialize payment');
+        }
+    })
+    .catch(error => {
+        // Remove loading indicator if it exists
+        if (loadingIndicator && document.body.contains(loadingIndicator)) {
+            document.body.removeChild(loadingIndicator);
+        }
+        
+        console.error('Error initializing payment:', error);
+        alert('Error initializing payment: ' + error.message);
+        
+        // Show order tracking anyway so the user can see their order
+        showOrderTracking(orderId, '', '');
+    });
+}
+
+// Helper function to show order tracking
+function showOrderTracking(orderId, pickupAddress, deliveryAddress) {
+    document.getElementById('order-form-container').style.display = 'none';
+    document.getElementById('order-tracking-container').style.display = 'block';
+    document.getElementById('tracking-order-id').textContent = orderId;
+    
+    // Update tracking addresses if provided
+    if (pickupAddress) {
+        document.getElementById('tracking-pickup-address').textContent = pickupAddress;
+    }
+    if (deliveryAddress) {
+        document.getElementById('tracking-delivery-address').textContent = deliveryAddress;
+    }
+    
+    // Initialize the tracking map with the addresses
+    if (pickupAddress && deliveryAddress) {
+        initTrackingMap(pickupAddress, deliveryAddress);
+    }
+    
+    // Connect to WebSocket for real-time updates
+    connectToWebSocket(orderId);
+    
+    // Simulate order progress (this will be replaced by real updates from WebSocket)
+    simulateOrderProgress();
 } 

@@ -795,4 +795,68 @@ input[type="file"] {
 
 .payment-qr p {
     color: var(--light-text);
+}
+
+/* Payment History Styles */
+.payment-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.payment-history-item {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 15px;
+  background-color: #fff;
+}
+
+.payment-history-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.payment-history-date {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.payment-history-status {
+  font-weight: bold;
+  font-size: 0.8rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.payment-history-details {
+  font-size: 0.9rem;
+}
+
+.payment-history-details p {
+  margin: 5px 0;
+}
+
+.payment-history-error {
+  color: #721c24;
+  background-color: #f8d7da;
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 4px solid #f5c6cb;
+}
+
+.resume-payment-section {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #fff3cd;
+  border-radius: 8px;
+  border-left: 4px solid #ffc107;
+}
+
+.resume-payment-section p {
+  margin-bottom: 15px;
+  color: #856404;
 } 

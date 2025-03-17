@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAiZ4kg052Mq1y2YMs3qQF_EYhPigeG4XQ&libraries=places&callback=initMap" async defer></script>
+    <!-- PayPal SDK -->
+    <script src="https://www.paypal.com/sdk/js?client-id=AUEcun4cVXfSVrGW502hZhoBFrqhxMZ8xtUUU9wc-R20wJrQK-OuY9cUw6emSTWeDxgVcYwc08KJ8LXx&currency=USD"></script>
 </head>
 <body>
     <div id="app">
@@ -241,6 +243,18 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Payment QR Code -->
+            <div id="payment-qr-container" class="payment-qr-container">
+                <div id="paypal-qr" class="payment-qr active">
+                    <div id="paypal-button-container"></div>
+                    <p>Click the PayPal button to pay</p>
+                </div>
+                <div id="wechat-qr" class="payment-qr">
+                    <img src="https://via.placeholder.com/200x200?text=WeChat+Pay+QR+Code" alt="WeChat Pay QR Code">
+                    <p>Scan with WeChat to pay</p>
                 </div>
             </div>
         </main>
