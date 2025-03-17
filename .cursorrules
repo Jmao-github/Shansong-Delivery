@@ -1,0 +1,64 @@
+{
+  "context_initialization": {
+    "description": "Initial context loading instructions",
+    "rules": [
+      "Always refer to the .notes folder before making suggestions",
+      "Prioritize project_overview.md for understanding project goals",
+      "Check task_list.md to understand current priorities",
+      "Review meeting_notes.md for past decisions and context"
+    ]
+  },
+  "operational_protocol": {
+    "description": "Steps to follow when working on tasks",
+    "rules": [
+      "Before suggesting changes: Read relevant code and documentation",
+      "Use MECE (Mutually Exclusive, Collectively Exhaustive) breakdown for complex tasks",
+      "After changes: Verify no existing functionality is broken",
+      "Document all new code thoroughly",
+      "NEVER modify existing functions that work correctly"
+    ]
+  },
+  "safety_requirements": {
+    "description": "Safety guidelines for code quality",
+    "rules": [
+      "Never break type safety",
+      "Always maintain proper error handling",
+      "Document all new code with clear comments",
+      "Preserve existing functionality",
+      "Test suggestions thoroughly before implementation"
+    ]
+  },
+  "priorities": {
+    "description": "Context priority weighting",
+    "weights": {
+      ".notes/": 10,
+      "Project Management/": 8,
+      "server.js": 7,
+      "utils/": 6,
+      "public/": 5
+    }
+  },
+  "modes": {
+    "base": {
+      "description": "Standard mode for routine tasks",
+      "context_depth": "medium",
+      "suggestion_detail": "high"
+    },
+    "enhanced": {
+      "description": "Advanced mode for complex architectural tasks",
+      "context_depth": "high",
+      "suggestion_detail": "very high"
+    },
+    "quick": {
+      "description": "Fast mode for simple fixes",
+      "context_depth": "low",
+      "suggestion_detail": "medium"
+    }
+  },
+  "project_directives": {
+    "name": "ShanSong",
+    "description": "Instant Delivery Platform",
+    "ai_first": true,
+    "preserve_existing": true
+  }
+} 
