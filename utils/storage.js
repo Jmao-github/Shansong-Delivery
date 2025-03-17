@@ -16,57 +16,41 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
         autoRefreshToken: false,
         persistSession: false
-    },
-    global: {
-        fetch: (url, options = {}) => {
-            // Add apikey header to all requests
-            const headers = {
-                ...options.headers,
-                apikey: supabaseKey,
-                Authorization: `Bearer ${supabaseKey}`,
-                'Content-Type': 'application/json'
-            };
-            
-            // Log request details for debugging
-            console.log(`Making Supabase request to: ${url}`);
-            console.log('Request headers:', headers);
-            
-            return fetch(url, { ...options, headers });
-        }
     }
 });
+
+// Storage configuration
+const BUCKET_NAME = process.env.SUPABASE_BUCKET_NAME || 'delivery-attachments';
+console.log('Using storage bucket:', BUCKET_NAME);
+
+// Feature flag for storage service
+const STORAGE_SERVICE = process.env.STORAGE_SERVICE || 'supabase'; // 'supabase' or 'airtable'
 
 // Verify connection
 async function verifyConnection() {
     try {
         console.log('Verifying Supabase connection...');
         
-        // Check if we can access storage
-        const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+        // First check if we can access the bucket directly instead of listing all buckets
+        const { data, error } = await supabase
+            .storage
+            .from(BUCKET_NAME)
+            .list();
         
-        if (bucketsError) {
-            console.error('Failed to list buckets:', bucketsError);
-            return false;
-        }
-        
-        console.log('Available buckets:', buckets.map(b => b.name));
-        
-        // Check if our bucket exists
-        const BUCKET_NAME = process.env.SUPABASE_BUCKET_NAME || 'delivery-attachments';
-        const bucketExists = buckets.some(b => b.name === BUCKET_NAME);
-        
-        if (!bucketExists) {
-            console.error(`Bucket ${BUCKET_NAME} not found in available buckets`);
+        if (error) {
+            console.error(`Error accessing bucket ${BUCKET_NAME}:`, error);
             
             // If we're using service role key, try to create the bucket
             if (useServiceRole) {
                 console.log(`Attempting to create bucket ${BUCKET_NAME}...`);
-                const { data, error } = await supabase.storage.createBucket(BUCKET_NAME, {
-                    public: true
-                });
+                const { data: createData, error: createError } = await supabase
+                    .storage
+                    .createBucket(BUCKET_NAME, {
+                        public: true
+                    });
                 
-                if (error) {
-                    console.error('Failed to create bucket:', error);
+                if (createError) {
+                    console.error('Failed to create bucket:', createError);
                     return false;
                 }
                 
@@ -77,19 +61,13 @@ async function verifyConnection() {
             return false;
         }
         
+        console.log(`Successfully connected to bucket ${BUCKET_NAME}`);
         return true;
     } catch (error) {
         console.error('Failed to verify Supabase connection:', error);
         return false;
     }
 }
-
-// Storage configuration
-const BUCKET_NAME = process.env.SUPABASE_BUCKET_NAME || 'delivery-attachments';
-console.log('Using storage bucket:', BUCKET_NAME);
-
-// Feature flag for storage service
-const STORAGE_SERVICE = process.env.STORAGE_SERVICE || 'supabase'; // 'supabase' or 'airtable'
 
 /**
  * Upload file to Supabase Storage
@@ -118,8 +96,9 @@ async function uploadToSupabase(fileBuffer, fileName, contentType) {
         const uniqueFileName = `${timestamp}-${randomString}-${sanitizedName}`;
         
         console.log('Generated unique filename:', uniqueFileName);
-
+        
         // Upload file to Supabase
+        let uploadResult;
         const { data, error } = await supabase.storage
             .from(BUCKET_NAME)
             .upload(uniqueFileName, fileBuffer, {
@@ -136,10 +115,29 @@ async function uploadToSupabase(fileBuffer, fileName, contentType) {
                 name: error.name,
                 details: error.details
             });
-            throw error;
+            
+            // Try a different approach if the first one fails
+            console.log('Attempting alternative upload method...');
+            
+            // Try using the from method with a different approach
+            const { data: altData, error: altError } = await supabase.storage
+                .from(BUCKET_NAME)
+                .upload(uniqueFileName, fileBuffer, {
+                    contentType,
+                    upsert: true
+                });
+                
+            if (altError) {
+                console.error('Alternative upload method also failed:', altError);
+                throw altError;
+            }
+            
+            console.log('Alternative upload method succeeded:', altData);
+            uploadResult = altData;
+        } else {
+            console.log('File uploaded successfully:', data);
+            uploadResult = data;
         }
-
-        console.log('File uploaded successfully:', data);
 
         // Get public URL
         const { data: { publicUrl } } = supabase.storage

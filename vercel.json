@@ -21,7 +21,11 @@
     }
   ],
   "env": {
-    "AIRTABLE_API_KEY": "pat0k8XuZRzbgfr5D.7d8f31068a137e8070a5ccdcce9c180b291314118b01a250889e362dc441d957",
-    "AIRTABLE_BASE_ID": "appFDJeAd9Hy9vIzc"
+    "SUPABASE_URL": "https://grznbpzxuyqaoogmrdgf.supabase.co",
+    "SUPABASE_SERVICE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdyem5icHp4dXlxYW9vZ21yZGdmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MTM2MTIwMCwiZXhwIjoyMDU2OTM3MjAwfQ.I4auQioWb_7jmO4qho9qbYKcUbXQlOmuRWAu3ReuIx0",
+    "SUPABASE_BUCKET_NAME": "delivery-attachments",
+    "USE_SERVICE_ROLE": "true",
+    "STORAGE_SERVICE": "supabase",
+    "USE_AIRTABLE_BACKUP": "false"
   }
 } 

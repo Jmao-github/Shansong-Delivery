@@ -8,16 +8,22 @@ const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
 const bodyParser = require('body-parser');
-const Airtable = require('airtable');
 const multer = require('multer');
 const { uploadToSupabase, uploadMultipleFiles, deleteFile, supabase } = require('./utils/storage');
 
-// Initialize Airtable
-// In production, use environment variables for these values
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || 'pat0k8XuZRzbgfr5D.ff14421558961d2f39b20ec5b91a968fafd8eed7594e9f62bd61179bce21822a';
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'appFDJeAd9Hy9vIzc'; // Replace with your actual Base ID
+// Initialize Airtable only if enabled
+const USE_AIRTABLE_BACKUP = process.env.USE_AIRTABLE_BACKUP === 'true';
+let base;
 
-const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
+if (USE_AIRTABLE_BACKUP) {
+    const Airtable = require('airtable');
+    const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || 'pat0k8XuZRzbgfr5D.ff14421558961d2f39b20ec5b91a968fafd8eed7594e9f62bd61179bce21822a';
+    const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'appFDJeAd9Hy9vIzc'; // Replace with your actual Base ID
+    base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
+    console.log('Airtable backup is enabled');
+} else {
+    console.log('Airtable backup is disabled');
+}
 
 // Initialize Express app
 const app = express();
@@ -131,12 +137,14 @@ app.post('/api/orders', async (req, res) => {
         console.log('Order successfully created in Supabase:', data);
 
         // Also save to Airtable as backup
-        try {
-            const airtableRecord = await base('Orders').create([{ fields: orderData }]);
-            console.log('Backup saved to Airtable:', airtableRecord[0].getId());
-        } catch (airtableError) {
-            console.error('Airtable backup failed:', airtableError);
-            // Continue even if Airtable backup fails
+        if (USE_AIRTABLE_BACKUP) {
+            try {
+                const airtableRecord = await base('Orders').create([{ fields: orderData }]);
+                console.log('Backup saved to Airtable:', airtableRecord[0].getId());
+            } catch (airtableError) {
+                console.error('Airtable backup failed:', airtableError);
+                // Continue even if Airtable backup fails
+            }
         }
 
         res.status(201).json({
@@ -297,7 +305,7 @@ function processOrder(order) {
     order.status = 'rider_assigned';
     
     // Update Airtable with rider assignment
-    if (order.airtableId) {
+    if (USE_AIRTABLE_BACKUP && order.airtableId) {
         base('Orders').update([
             {
                 id: order.airtableId,
@@ -318,7 +326,7 @@ function processOrder(order) {
         order.status = 'pickup';
         
         // Update Airtable with pickup status
-        if (order.airtableId) {
+        if (USE_AIRTABLE_BACKUP && order.airtableId) {
             base('Orders').update([
                 {
                     id: order.airtableId,
@@ -339,7 +347,7 @@ function processOrder(order) {
             availableRider.available = true; // Rider becomes available again
             
             // Update Airtable with delivered status
-            if (order.airtableId) {
+            if (USE_AIRTABLE_BACKUP && order.airtableId) {
                 base('Orders').update([
                     {
                         id: order.airtableId,
